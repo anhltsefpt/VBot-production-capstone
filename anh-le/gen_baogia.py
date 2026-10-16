@@ -182,10 +182,7 @@ add("ops_labor", "Nhân sự vận hành: không tính",
     A["ops_labor_usd"], "NA")
 
 total = round(sum(r[3] for r in rows), 2)
-comp_total = {}
-for r in rows:
-    comp_total[r[0]] = comp_total.get(r[0], 0) + r[3]
-rows.sort(key=lambda r: (-comp_total[r[0]], r[0], -r[3]))  # components by total cost, highest first
+rows.sort(key=lambda r: (-r[3], r[0]))  # every line by cost, highest first
 
 # ============================================================ write xlsx
 wb = openpyxl.Workbook()
