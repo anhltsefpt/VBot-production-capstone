@@ -301,7 +301,7 @@ text(s, 0.5, 6.5, 12.3, 0.4, f"947 USD là tiền text. Cộng 147 USD tiền �
 
 # ================================================================ 5 tech choices
 s = header("5. Mỗi lựa chọn đều rẻ hơn phương án thay thế",
-           "Chọn phương án rẻ nhất mà vẫn đạt đủ ràng buộc H1–H8. Đơn vị: USD/tháng", 5)
+           "Chọn phương án rẻ nhất mà vẫn đạt đủ ràng buộc H1–H8. Đơn vị: USD/tháng. Cách tính từng con số: slide 5b", "5a")
 table(s, 0.5, 1.5, 12.3, [
     ["Quyết định", "Chọn", "Phương án so sánh", "Lý do"],
     ["Cloud chính", "GCP: 6.821 (tổng)", "AWS 8.643 · Azure 14.484", "Rẻ nhất; chênh lệch chủ yếu ở guardrail"],
@@ -313,6 +313,29 @@ table(s, 0.5, 1.5, 12.3, [
     ["Connector", "Gọi API bằng OAuth của user", "Crawl toàn bộ dữ liệu vào index", "SaaS tự áp quyền gốc; không cần tài khoản quyền rộng"]],
     col_w=[1.7, 3.1, 3.3, 4.2], size=12, row_h=0.55)
 text(s, 0.5, 6.4, 12.3, 0.5, "Giá niêm yết tại Singapore, đọc ngày 16/10/2026. Lựa chọn model: slide 4.", size=11)
+
+s = header("5. Cách tính: đơn giá niêm yết × khối lượng tải",
+           "Mỗi con số ở slide 5a = đơn giá của dịch vụ × khối lượng ước lượng ở slide 1b. Đơn vị: USD/tháng; 1 tháng = 730 giờ", "5b")
+table(s, 0.5, 1.5, 12.3, [
+    ["Quyết định", "Phương án chọn: cách tính", "Phương án so sánh: cách tính"],
+    ["Cloud chính", "GCP 6.821 = tổng 20 dòng của báo giá (Phụ lục A)",
+     "AWS 8.643, Azure 14.484: cùng khối lượng, tính theo giá của AWS, Azure. Nếu bỏ dòng governance, 3 cloud chênh nhau dưới 8%. "
+     "Chênh lệch nằm ở guardrail + che PII: GCP 281, AWS ~1.910, Azure ~7.534"],
+    ["LLM gateway", "LiteLLM là phần mềm miễn phí. 2 pod chạy trong cụm GKE, tiền máy đã nằm trong dòng compute",
+     "Apigee: môi trường Intermediate 1.460 + phí theo lượt gọi model (100 USD/1 triệu lượt) ≈ 1.595. "
+     "Azure APIM Standard v2: 0,96 USD/giờ × 730 giờ ≈ 700"],
+    ["Tìm kiếm vector", f"pgvector là extension của Postgres, chạy trong database đã có ({usd(c['database'])} USD), chỉ tốn thêm ít dung lượng",
+     "Vertex Vector Search: tối thiểu 1 máy e2-standard-2 chạy 24/7 ≈ 84. "
+     "OpenSearch: tối thiểu 2 OCU × 0,283 USD/giờ × 730 giờ ≈ 413"],
+    ["Cất token OAuth", "3 khóa KMS × 0,06 + 760.000 lần mã hóa/giải mã × 0,03 USD/10.000 lần + 20 secret hệ thống ≈ 4",
+     "Mỗi token một secret: 2.000 user × 6 connector = 12.000 secret × 0,06 USD ≈ 720"],
+    ["Sandbox", "140.800 lượt × 2 phút = 4.693 vCPU-giờ × 0,0549 + 9.386 GB-giờ × 0,0061 ≈ 315",
+     "Cùng số giờ, theo giá Agent Engine (0,085 USD/vCPU-giờ) ≈ 483; AgentCore (0,0895 USD/vCPU-giờ) ≈ 509"],
+    ["Guardrail", "Chỉ quét text mới: 2,81 tỉ token/tháng × 0,10 USD/1 triệu token ≈ 281",
+     "Quét toàn bộ token: (12,19 + 0,79) tỉ token × 0,10 USD/1 triệu token ≈ 1.298"]],
+    col_w=[1.7, 4.9, 5.7], size=12, row_h=0.62)
+text(s, 0.5, 6.15, 12.3, 0.8, ["Giá niêm yết tại Singapore, đọc ngày 16/10/2026, chưa VAT. Sandbox tính theo trần 2 phút/lượt nên là cận trên.",
+                               "Đơn giá và khối lượng của từng dòng: cột Ghi chú và Bằng chứng trong G03_baogia.xlsx."], size=11)
 
 # ================================================================ 6 connectors & authz
 s = header("6. Agent chỉ thấy những gì user được thấy (H2)",
