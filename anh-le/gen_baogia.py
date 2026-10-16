@@ -154,7 +154,8 @@ add("governance", "Model Armor: guardrail vào/ra, chống prompt injection, DLP
     f"Chỉ quét text mới và không đáng tin (D24): {tin/1e9:.2f} tỉ token vào + {tout/1e9:.2f} tỉ token ra = {(tin+tout)/1e9:.2f} tỉ × 0,10 USD/1M; Sensitive Data Protection đi kèm Model Armor",
     (tin + tout) / 1e6 * P["guard_1m_tok"], "E13")
 add("governance", "Eval gate trước khi đổi model hoặc prompt",
-    f"{A['eval_runs_month']} lần/tháng × 5 cấp × {A['eval_tasks_per_tier']} nhiệm vụ: Haiku 5.5 + Opus 5.5 tham chiếu + Opus chấm điểm (2 lần × 3.000/300 token)",
+    f"Mỗi lần: 5 cấp × {A['eval_tasks_per_tier']} nhiệm vụ, Haiku 5.5 làm bài + Opus 5.5 chấm điểm (2 lần × 3.000/300 token), {A['eval_runs_month']} lần/tháng. "
+    f"Bài mẫu của Opus 5.5 lưu lại, chạy lại {A['eval_ref_runs_month']} lần/tháng (D35)",
     m.eval_cost(), "E02")
 
 # ---- network

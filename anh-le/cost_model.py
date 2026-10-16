@@ -71,6 +71,7 @@ A = {
     "scan_per_turn": {1: (3000, 250), 2: (10000, 2500), 3: (3000, 1000), 4: (12000, 300), 5: (200, 600)},
     "chars_per_token": 4,            # GIẢ ĐỊNH CHƯA CHỐT (Vietnamese/English mix)
     "eval_tasks_per_tier": 100, "eval_runs_month": 4,   # GIẢ ĐỊNH CHƯA CHỐT (D28 eval gate)
+    "eval_ref_runs_month": 1,        # D35: Opus reference answers are stored and refreshed once a month
     "eval_judge_tok": (3000, 300),   # GIẢ ĐỊNH CHƯA CHỐT: judge input/output per task
     # --- CI/CD ---
     "build_min_month": 2000, "registry_gb": 20,   # GIẢ ĐỊNH CHƯA CHỐT
@@ -186,10 +187,10 @@ def images_month():
 
 
 def eval_cost():
-    """Eval gate: candidate Haiku + reference Opus + Opus judge, per run, per tier (no cache)."""
+    """Eval gate: candidate Haiku + Opus judge every run; stored Opus reference refreshed monthly (no cache)."""
     p = P["llm"]
     jin, jout = A["eval_judge_tok"]
-    per_run = 0.0
+    per_run = ref = 0.0
     for t, (calls, i, o, _) in A["tokens"].items():
         tasks_turns = A["eval_tasks_per_tier"]  # 1 turn per golden task
         ti, to = calls * i, calls * o
@@ -197,8 +198,9 @@ def eval_cost():
         opus = tasks_turns * (ti * p["opus_in"] + to * p["opus_out"]) / 1e6
         # judge scores both candidate and reference
         judge = tasks_turns * 2 * (jin * p["opus_in"] + jout * p["opus_out"]) / 1e6
-        per_run += haiku + opus + judge
-    return per_run * A["eval_runs_month"]
+        per_run += haiku + judge
+        ref += opus
+    return per_run * A["eval_runs_month"] + ref * A["eval_ref_runs_month"]
 
 
 def scanned_tokens():
