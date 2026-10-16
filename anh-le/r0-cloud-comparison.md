@@ -1,5 +1,7 @@
 # R0 – So sánh tổng chi phí tháng: GCP vs AWS vs Azure (Singapore)
 
+> Cập nhật 16/10/2026 (D34): báo giá đã bỏ `ops_labor`. Trừ 3.400 USD khỏi mọi tổng bên dưới. Tổng DR B mới: GCP 3.421, AWS 5.243, Azure 11.084 USD/tháng.
+
 Nguồn số: `cost_model.py` (chạy `python3 cost_model.py`). Đơn giá lấy từ `research/r1-compute-network.md`, `r2-data.md`, `r3-models.md`, `r5-r9-security-governance.md`, `r8-r6-connectors-labor.md`. Khối lượng lấy từ D1–D30 (`PLAN.md`), `sizing-load.md`. USD/tháng, giá niêm yết, chưa VAT. D30 = cấu hình compute đã chốt ở Q32 (3 loại pod × 1 vCPU/2 GB, 2 pod/zone giờ hành chính, 1 pod ngoài giờ, staging là namespace trong cluster prod).
 
 ## 1. Bảng tổng (DR phương án A – chỉ chịu mất 1 zone)

@@ -177,9 +177,9 @@ add("cicd", "Cloud Build + Artifact Registry + IaC (Terraform), deploy staging r
     A["build_min_month"] * P["build_min"] + A["registry_gb"] * P["registry_gb"], "E15; E16")
 
 # ---- ops_labor / licenses
-add("ops_labor", "2 FTE vận hành: SRE senior + AI/MLOps mid, trực luân phiên",
-    "Package gross 12 tháng, trung vị ITviec 2024–2025: DevOps 5–8 năm 53,85 tr + AI Engineer 3–4 năm 34,1 tr = 87,95 tr VND/tháng ÷ 25.870 VND/USD (Vietcombank 16/10/2026)",
-    3400, "NA")
+add("ops_labor", "Nhân sự vận hành: không tính",
+    "Theo hướng dẫn của coach, báo giá không gồm chi phí nhân sự vận hành",
+    A["ops_labor_usd"], "NA")
 
 total = round(sum(r[3] for r in rows), 2)
 
@@ -190,7 +190,7 @@ ws.title = "BaoGia"
 ws.append(["Component", "Ý nghĩa", "Ghi chú", "Chi phí/tháng (USD)", "Bằng chứng"])
 for r in rows:
     ws.append(list(r))
-ws.append(["TOTAL", "Tổng chi phí hạ tầng + vận hành mỗi tháng", f"{len(rows)} dòng; USD/DAU = {total/2000:.2f}", total, ""])
+ws.append(["TOTAL", "Tổng chi phí hạ tầng mỗi tháng (không gồm nhân sự)", f"{len(rows)} dòng; USD/DAU = {total/2000:.2f}", total, ""])
 for c in ws[1]:
     c.font = Font(bold=True, color="FFFFFF")
     c.fill = PatternFill("solid", fgColor="1F4E78")

@@ -12,7 +12,7 @@ Quy ước:
 
 ## Bìa (10 giây)
 
-Xin chào hội đồng. Nhóm G03 trình bày VBot Workplace. Đây là trợ lý AI văn phòng cho 2.000 người dùng mỗi ngày, chạy trên Google Cloud. Tổng chi phí là 6.821 USD mỗi tháng, tức 3,41 USD cho mỗi người dùng.
+Xin chào hội đồng. Nhóm G03 trình bày VBot Workplace. Đây là trợ lý AI văn phòng cho 2.000 người dùng mỗi ngày, chạy trên Google Cloud. Tổng chi phí hạ tầng là 3.421 USD mỗi tháng, tức 1,71 USD cho mỗi người dùng. Con số này không gồm chi phí nhân sự vận hành.
 
 ## 1a. Tải: 14.120 việc mỗi ngày (35 giây)
 
@@ -37,7 +37,7 @@ Hai chỉ số quyết định chi phí:
 
 ## 2. Kiến trúc: một region GCP, không có điểm lỗi đơn (35 giây)
 
-Nhóm chọn Google Cloud, region Singapore. Lý do chính là giá: GCP rẻ nhất trong 3 cloud. AWS tốn 8.643 USD, Azure tốn 14.484 USD.
+Nhóm chọn Google Cloud, region Singapore. Lý do chính là giá: GCP rẻ nhất trong 3 cloud. GCP tốn 3.421 USD, AWS tốn 5.243 USD, Azure tốn 11.084 USD.
 
 [Chỉ vào khung nét đứt.] Phần ứng dụng chạy trên cụm GKE Autopilot, trải trên 2 zone. Mỗi thành phần có một bản thứ hai ở zone khác. Vì vậy, hệ thống không có điểm lỗi đơn.
 
@@ -133,15 +133,15 @@ Trung bình, mỗi người dùng tốn 1,11 USD mỗi tháng. Nhóm đặt quot
 - Ở 100%, hệ thống chuyển sang model rẻ nhất.
 - Ở 120%, hệ thống chặn đến đầu tháng sau.
 
-## 11a. Chi phí: một nửa là nhân sự, LLM chỉ 16% (30 giây)
+## 11a. Chi phí: LLM 32%, governance 24% (30 giây)
 
-Tổng chi phí là 6.821,44 USD mỗi tháng, tức 3,41 USD cho mỗi người dùng. Bảng này giải thích vì sao mỗi khoản ra con số đó.
+Tổng chi phí là 3.421,44 USD mỗi tháng, tức 1,71 USD cho mỗi người dùng. Theo hướng dẫn của coach, báo giá không gồm chi phí nhân sự. Bảng này giải thích vì sao mỗi khoản ra con số đó.
 
-- Nhân sự: 3.400 USD, tức 50%. Đây là lương của 2 kỹ sư trực luân phiên. Khoản này cố định, vì hệ thống luôn cần người trực.
-- LLM: 1.093 USD, tức 16%. Haiku rẻ, và 61% token đầu vào đọc từ cache với giá thấp hơn 10 lần.
-- Governance: 806 USD. Eval chiếm 525 USD, vì Opus vừa làm bài mẫu vừa chấm điểm.
+- LLM: 1.093 USD, tức 32%. Đây là khoản lớn nhất, vì khoản này tăng theo lượt dùng. Khoản này vẫn nhỏ, vì Haiku rẻ và 61% token đầu vào đọc từ cache.
+- Governance: 806 USD, tức 24%. Eval chiếm 525 USD, vì Opus vừa làm bài mẫu vừa chấm điểm.
 - Database: 467 USD. Database chạy 24/7 và có bản dự phòng ở zone khác.
 - Sandbox: 315 USD. Đây là cận trên, vì nhóm tính mỗi lượt đủ 2 phút.
+- Compute: 284 USD. Ngoài giờ hành chính, mỗi loại pod chỉ chạy 1 bản.
 
 ## 11b. Đòn bẩy: mỗi lựa chọn tiết kiệm bao nhiêu (20 giây)
 
@@ -153,9 +153,9 @@ Mỗi dòng so với một phương án riêng. Vì vậy, nhóm không cộng d
 
 ## 12. Rủi ro lớn nhất: Haiku không đạt eval ở cấp 3–4 (25 giây)
 
-Rủi ro lớn nhất là Haiku không đạt eval ở cấp 3 và cấp 4. Khi đó, chi phí lên 11.526 USD mỗi tháng. Nhóm đã tính sẵn kịch bản này. LiteLLM đổi model bằng 1 dòng cấu hình.
+Rủi ro lớn nhất là Haiku không đạt eval ở cấp 3 và cấp 4. Khi đó, chi phí lên 8.126 USD mỗi tháng. Nhóm đã tính sẵn kịch bản này. LiteLLM đổi model bằng 1 dòng cấu hình.
 
-Nếu số người dùng gấp đôi, chi phí mỗi người dùng giảm từ 3,41 xuống 2,21 USD. Lý do là chi phí nhân sự và hạ tầng gần như cố định.
+Nếu số người dùng gấp đôi, chi phí mỗi người dùng giảm từ 1,71 xuống 1,36 USD. Lý do là chi phí hạ tầng nền gần như cố định.
 
 Nhóm sẽ đo token thực tế trong 2 đến 4 tuần pilot. Xin cảm ơn hội đồng. Nhóm sẵn sàng trả lời câu hỏi.
 

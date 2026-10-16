@@ -76,8 +76,8 @@ A = {
     "build_min_month": 2000, "registry_gb": 20,   # GIẢ ĐỊNH CHƯA CHỐT
     # --- DR (Q9 pending) ---
     "dr_db_transfer_gb": 300, "dr_new_obj_gb": 200,   # GIẢ ĐỊNH CHƯA CHỐT
-    # --- labor (D8) ---
-    "ops_labor_usd": 3400,
+    # --- labor (D8) --- excluded from the quote per coach guidance (2026-10-16); was 3400
+    "ops_labor_usd": 0,
 }
 
 # ============================================================ PRICES (USD)

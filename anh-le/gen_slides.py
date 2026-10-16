@@ -121,7 +121,7 @@ bg = s.shapes.add_shape(MSO_SHAPE.RECTANGLE, 0, 0, prs.slide_width, prs.slide_he
 bg.fill.solid(); bg.fill.fore_color.rgb = NAVY; bg.line.fill.background()
 text(s, 0.8, 1.4, 11.5, 1.2, "VBot Workplace", size=48, color=WHITE, bold_first=True)
 text(s, 0.8, 2.5, 11.5, 0.8, "Trợ lý AI văn phòng trên Google Cloud cho 2.000 người dùng mỗi ngày", size=24, color=WHITE)
-text(s, 0.8, 3.6, 11.5, 1.2, ["Tổng chi phí: 6.821,44 USD/tháng, tức 3,41 USD cho mỗi người dùng hoạt động (DAU)",
+text(s, 0.8, 3.6, 11.5, 1.2, ["Tổng chi phí: 3.421,44 USD/tháng, tức 1,71 USD cho mỗi người dùng hoạt động (DAU)",
                               "Track 2 · Production Capstone · Nhóm G03"], size=18, color=RGBColor(0xBF, 0xD7, 0xEA))
 text(s, 0.8, 4.8, 11.5, 1.8, [("Thành viên", True), "Lê Tuấn Anh · MSSV 2A202602952", "Hồ Thái Hòa · MSSV 2A202602915",
                               "Nguyễn Đình Lâm Phúc · MSSV 2A202602986"], size=16, color=WHITE)
@@ -228,7 +228,7 @@ text(s, 0.5, 5.75, 12.3, 1.1, [
 
 # ================================================================ 2 architecture
 s = header("2. Kiến trúc: một region GCP, không có điểm lỗi đơn",
-           f"GCP Singapore vì rẻ nhất trong 3 cloud (6.821 USD/tháng; AWS 8.643, Azure 14.484). Số tròn là bước ở slide 3; chữ xanh là mã dòng trong báo giá", 2)
+           f"GCP Singapore vì rẻ nhất trong 3 cloud (3.421 USD/tháng; AWS 5.243, Azure 11.084). Số tròn là bước ở slide 3; chữ xanh là mã dòng trong báo giá", 2)
 box(s, 0.3, 1.7, 1.6, 0.9, "Nhân viên", "trình duyệt", fill=WHITE)
 box(s, 2.2, 1.6, 2.0, 1.1, "Tường lửa web + cân bằng tải", "network · load_balancer")
 box(s, 4.5, 1.6, 2.0, 1.1, "IAP + SSO tập đoàn (MFA)", "authn")
@@ -251,7 +251,6 @@ box(s, 2.6, 4.9, 2.0, 1.0, "Khóa mã hóa, secret", "secrets_kms")
 box(s, 4.8, 4.9, 1.8, 1.0, "Log, metric, trace", "monitoring")
 box(s, 6.8, 4.9, 2.0, 1.0, "Backup + DR sang Jakarta", "backup_dr")
 box(s, 9.0, 4.9, 1.9, 1.0, "Build, deploy", "cicd")
-box(s, 11.1, 4.9, 1.8, 1.0, "2 kỹ sư vận hành", "ops_labor")
 for n, (bx, by) in enumerate([(2.2, 1.6), (7.0, 3.1), (4.8, 3.4), (11.1, 1.8), (9.0, 1.8), (11.1, 3.1)], 1):
     badge(s, bx - 0.14, by - 0.14, n)
 text(s, 0.3, 6.1, 12.7, 0.8, ["Mỗi thành phần có bản thứ hai ở zone khác (slide 9). Dữ liệu lưu tại Singapore; Vertex AI cam kết không lưu và không dùng dữ liệu để huấn luyện.",
@@ -306,7 +305,7 @@ s = header("5. Mỗi lựa chọn đều rẻ hơn phương án thay thế",
            "Chọn phương án rẻ nhất mà vẫn đạt đủ ràng buộc H1–H8. Đơn vị: USD/tháng. Cách tính từng con số: slide 5b", "5a")
 table(s, 0.5, 1.5, 12.3, [
     ["Quyết định", "Chọn", "Phương án so sánh", "Lý do"],
-    ["Cloud chính", "GCP: 6.821 (tổng)", "AWS 8.643 · Azure 14.484", "Rẻ nhất; chênh lệch chủ yếu ở guardrail"],
+    ["Cloud chính", "GCP: 3.421 (tổng)", "AWS 5.243 · Azure 11.084", "Rẻ nhất; chênh lệch chủ yếu ở guardrail"],
     ["LLM gateway", "LiteLLM tự chạy: 0 tiền license", "Apigee ~1.595 · Azure APIM ~700", "Duy nhất có quota USD theo từng user và phòng ban (H8)"],
     ["Tìm kiếm vector", "pgvector trong Postgres: 0 thêm", "Vertex Vector Search ~84 · OpenSearch ~413", "Dữ liệu nhỏ; lọc quyền bằng SQL ngay trong database"],
     ["Cất token OAuth", "Mã hóa bằng KMS, lưu trong Postgres: ~4", "Secret Manager (12.000 secret) ~720", "Vẫn mã hóa và có audit, rẻ hơn 180 lần"],
@@ -320,8 +319,8 @@ s = header("5. Cách tính: đơn giá niêm yết × khối lượng tải",
            "Mỗi con số ở slide 5a = đơn giá của dịch vụ × khối lượng ước lượng ở slide 1b. Đơn vị: USD/tháng; 1 tháng = 730 giờ", "5b")
 table(s, 0.5, 1.5, 12.3, [
     ["Quyết định", "Phương án chọn: cách tính", "Phương án so sánh: cách tính"],
-    ["Cloud chính", "GCP 6.821 = tổng 20 dòng của báo giá (Phụ lục A)",
-     "AWS 8.643, Azure 14.484: cùng khối lượng, tính theo giá của AWS, Azure. Nếu bỏ dòng governance, 3 cloud chênh nhau dưới 8%. "
+    ["Cloud chính", "GCP 3.421 = tổng các dòng của báo giá (Phụ lục A)",
+     "AWS 5.243, Azure 11.084: cùng khối lượng, tính theo giá của AWS, Azure. Nếu bỏ dòng governance, 3 cloud chênh nhau dưới 16%. "
      "Chênh lệch nằm ở guardrail + che PII: GCP 281, AWS ~1.910, Azure ~7.534"],
     ["LLM gateway", "LiteLLM là phần mềm miễn phí. 2 pod chạy trong cụm GKE, tiền máy đã nằm trong dòng compute",
      "Apigee: môi trường Intermediate 1.460 + phí theo lượt gọi model (100 USD/1 triệu lượt) ≈ 1.595. "
@@ -451,19 +450,16 @@ text(s, 6.9, 4.3, 6.0, 2.3, [
 
 # ================================================================ 11a cost breakdown
 top5 = sorted(c.items(), key=lambda kv: -kv[1])[:5]
-assert [k for k, _ in top5] == ["ops_labor", "llm", "governance", "database", "sandbox"]
+assert [k for k, _ in top5] == ["llm", "governance", "database", "sandbox", "compute"]
 rest = sorted([(k, v) for k, v in c.items() if k not in dict(top5) and v > 0], key=lambda kv: -kv[1])
 rest_sum = TOTAL - sum(v for _, v in top5)
-s = header(f"11. Chi phí: một nửa là nhân sự, LLM chỉ {share('llm')}",
-           f"Tổng 6.821,44 USD/tháng, tức 3,41 USD/DAU. Bảng dưới giải thích vì sao mỗi khoản ra con số này", "11a")
+s = header(f"11. Chi phí: LLM {share('llm')}, governance {share('governance')}",
+           f"Tổng {usd2(TOTAL)} USD/tháng, tức {usd2(TOTAL / 2000)} USD/DAU. Bảng dưới giải thích vì sao mỗi khoản ra con số này", "11a")
 table(s, 0.5, 1.5, 12.3, [
     ["Khoản", "USD/tháng", "%", "Cách tính", "Vì sao lớn hay nhỏ"],
-    ["ops_labor (nhân sự)", usd(c["ops_labor"]), share("ops_labor"),
-     "2 kỹ sư trực luân phiên: SRE 5–8 năm (53,85 triệu VND) + AI/MLOps 3–4 năm (34,1 triệu VND) = 87,95 triệu VND ÷ 25.870 VND/USD",
-     "Lớn nhất vì cố định: cần người trực để giữ 99,5% (H7), vận hành LiteLLM và eval. Không giảm khi ít người dùng"],
     ["llm", usd(c["llm"]), share("llm"),
      "Lượt × số lần gọi model × token × giá. Cấp 1: 386 · cấp 2: 288 · cấp 3: 161 · cấp 4: 105 · cấp 5: 7 + ảnh 147 (4.312 ảnh × 0,034)",
-     "Nhỏ vì Haiku rẻ (0,10 USD/1M token vào) và 61% token vào đọc từ cache với giá 0,01"],
+     "Lớn nhất vì tăng theo lượt dùng. Vẫn nhỏ nhờ Haiku rẻ (0,10 USD/1M token vào) và 61% token vào đọc từ cache với giá 0,01"],
     ["governance", usd(c["governance"]), share("governance"),
      "Guardrail: 2,81 tỉ token × 0,10 USD/1M = 281. Eval gate: 4 lần/tháng × 5 cấp × 100 nhiệm vụ = 525",
      "Eval đắt hơn guardrail vì Opus 5.5 vừa làm bài mẫu vừa chấm điểm"],
@@ -473,11 +469,14 @@ table(s, 0.5, 1.5, 12.3, [
     ["sandbox", usd(c["sandbox"]), share("sandbox"),
      "140.800 lượt × 2 phút = 4.693 vCPU-giờ × 0,0549 + 9.386 GB-giờ × 0,0061",
      "Là cận trên: thời gian chạy thật chưa đo, nên mỗi lượt tính đủ 2 phút tối đa"],
+    ["compute", usd(c["compute"]), share("compute"),
+     "Phí cụm GKE 0,10 USD/giờ × 730 = 73 · 3 loại pod (web, LiteLLM, worker): 2.970 vCPU-giờ + 7.920 GB-giờ = 211",
+     "Nhỏ vì giờ hành chính chạy 2 pod mỗi loại, ngoài giờ chỉ 1 pod"],
     [f"{len(rest)} khoản còn lại", usd(rest_sum), f"{rest_sum / TOTAL * 100:.0f}%",
      " · ".join(f"{k} {usd(v)}" for k, v in rest[:5]) + " · …",
-     "Hạ tầng gọn: 1 cụm GKE, 1 region, phần lớn chỉ chạy đủ trong giờ hành chính"]],
+     "Hạ tầng gọn: 1 cụm GKE, 1 region"]],
     col_w=[1.8, 1.1, 0.7, 4.7, 4.0], size=11, row_h=0.68)
-text(s, 0.5, 6.45, 12.3, 0.5, "Đơn giá và bằng chứng từng dòng: Phụ lục A và G03_baogia.xlsx. Không dùng free tier, credit hay giá khuyến mãi.", size=11)
+text(s, 0.5, 6.45, 12.3, 0.5, "Không gồm chi phí nhân sự vận hành (theo hướng dẫn của coach). Đơn giá và bằng chứng từng dòng: Phụ lục A và G03_baogia.xlsx.", size=11)
 
 # ================================================================ 11b savings levers
 s = header("11. Đòn bẩy: mỗi lựa chọn tiết kiệm bao nhiêu",
@@ -499,26 +498,26 @@ text(s, 0.5, 6.1, 12.3, 0.8, ["Mỗi dòng so với một phương án thay th�
 
 # ================================================================ 12 risk
 s = header("12. Rủi ro lớn nhất: Haiku không đạt eval ở cấp 3–4",
-           "Khi đó chi phí lên 11.526 USD/tháng. Nhóm đã tính sẵn; LiteLLM đổi model bằng 1 dòng cấu hình", 12)
+           "Khi đó chi phí lên 8.126 USD/tháng. Nhóm đã tính sẵn; LiteLLM đổi model bằng 1 dòng cấu hình", 12)
 table(s, 0.5, 1.5, 6.3, [
     ["Kịch bản", "USD/tháng", "USD/DAU"],
-    ["Cơ sở (2.000 DAU)", "6.821", "3,41"],
-    ["DAU gấp đôi = 4.000", "8.826", "2,21"],
-    ["Giá token +30%", "7.263", "3,63"],
-    ["Giá token −50%", "6.085", "3,04"],
-    ["Cấp 3–4 phải nâng lên Sonnet 5.5", "11.526", "5,76"],
+    ["Cơ sở (2.000 DAU)", "3.421", "1,71"],
+    ["DAU gấp đôi = 4.000", "5.426", "1,36"],
+    ["Giá token +30%", "3.863", "1,93"],
+    ["Giá token −50%", "2.685", "1,34"],
+    ["Cấp 3–4 phải nâng lên Sonnet 5.5", "8.126", "4,06"],
     ["Workspace đầy 20 TB", "+ ~704", "—"]],
     col_w=[3.3, 1.5, 1.5], size=12, row_h=0.42)
 text(s, 0.5, 4.7, 6.3, 2.0, [
     ("Khi DAU gấp đôi, USD/DAU giảm", True),
     "Tăng theo lượt dùng: LLM, guardrail, sandbox, lưu trữ, log",
-    "Gần như cố định: 2 kỹ sư, cụm GKE, database, cache, cân bằng tải",
+    "Gần như cố định: cụm GKE, database, cache, cân bằng tải",
     "Chỉ xét tự host GPU khi tiền token vượt chi phí chạy ≥ 2 GPU 24/7 cộng vận hành"], size=12)
 text(s, 7.1, 1.5, 5.8, 5.2, [
     ("Các rủi ro khác và cách xử lý", True),
     "Token thực tế khác giả định: nhóm dùng 13 tỉ token/tháng, khoảng có thể là 4,6–42,8 tỉ → đo trong pilot 2–4 tuần",
     "Luật bảo vệ dữ liệu cá nhân (Nghị định 13/2023): Vertex AI dùng endpoint global → dữ liệu nhạy cảm dùng model chạy tại Singapore",
-    "LiteLLM là open source, không có SLA → 2 kỹ sư trực, cố định phiên bản, test trên staging",
+    "LiteLLM là open source, không có SLA → đội vận hành trực, cố định phiên bản, test trên staging",
     "Rate limit Jira/Confluence dùng chung cho cả app (65.000 điểm/giờ) → hàng đợi và thử lại",
     "Google dự kiến tính phí API Workspace từ cuối 2026 (chưa công bố giá)"], size=12)
 
