@@ -4,6 +4,12 @@ from pptx.util import Inches, Pt
 from pptx.dml.color import RGBColor
 from pptx.enum.shapes import MSO_SHAPE, MSO_CONNECTOR
 from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
+from pptx.chart.data import CategoryChartData
+from pptx.enum.chart import XL_CHART_TYPE
+from pptx.oxml.ns import qn
+import contextlib
+from decimal import Decimal, ROUND_HALF_UP
+import io
 
 import cost_model as m
 
@@ -119,275 +125,352 @@ text(s, 0.8, 4.3, 11.5, 1.2, ["Tổng chi phí: 6.821,44 USD/tháng, tức 3,41 
                               "Track 2 · Production Capstone · Nhóm G03"], size=18, color=RGBColor(0xBF, 0xD7, 0xEA))
 
 # ================================================================ 1 load
-s = header("1. Giả định và ước lượng tải", "Đề cho sẵn 2.000 DAU. Nhóm ước lượng mọi khối lượng còn lại từ dưới lên, theo 8 phòng ban, có nguồn", 1)
-table(s, 0.5, 1.5, 6.2, [
-    ["Phòng ban", "Số người", "Nhiệm vụ/người/ngày"],
-    ["Kinh doanh, CSKH", "500", "6,49"], ["Kế toán", "240", "7,41"], ["Nhân sự, hành chính, pháp chế", "260", "6,63"],
-    ["Marketing", "200", "7,50"], ["Quản lý dự án, vận hành", "300", "7,46"], ["Mua hàng, SCM", "200", "6,87"],
-    ["IT", "200", "7,35"], ["Lãnh đạo, trợ lý", "100", "8,00"], ["Toàn công ty", "2.000", "7,06"]],
-    col_w=[3.0, 1.0, 2.2], size=11)
-text(s, 0.5, 5.0, 6.3, 1.9, [
-    ("Công thức: số nhiệm vụ = khối lượng việc thực tế × tỉ lệ giao cho AI", True),
-    "Khối lượng việc: Microsoft RCT 2025 (32 email đọc và 2 cuộc họp mỗi ngày), Radicati, APQC, NBER, Graphite",
-    "Tỉ lệ giao cho AI: Liang 2025 (10–24% văn bản có dùng LLM); email nâng lên 30% vì công ty triển khai chính thức",
-    "Chỉ tính tác vụ đi qua 11 connector của đề"], size=11)
-table(s, 7.0, 1.5, 5.8, [
-    ["Chỉ số", "Giá trị"],
-    ["Nhiệm vụ/ngày · /tháng (22 ngày)", "14.120 · 310.644"],
-    ["Lượt chat mỗi ngày", "27.098 (13,55 lượt/người)"],
-    ["Tỉ lệ cấp 1/2/3/4/5", "84,0 / 7,4 / 3,9 / 3,9 / 0,7%"],
-    ["Cao điểm (15% lưu lượng ngày)", "0,59 nhiệm vụ/s · 1,13 lượt/s"],
-    ["Token mỗi tháng", "12,19 tỉ vào (61% từ cache) + 0,79 tỉ ra"],
-    ["Sandbox", "140.800 lượt, tối đa 2 phút/lượt"],
-    ["Ảnh sinh ra", "4.312 ảnh/tháng"],
-    ["Workspace", "2.000 × 2 GB = 4 TB; quota 10 GB/người"],
-    ["Thời hạn lưu audit · lịch sử chat", "12 tháng · 12 tháng"]], col_w=[2.6, 3.2], size=11)
-text(s, 7.0, 5.0, 5.8, 1.9, [
-    ("Token mỗi lượt: số lần gọi model × token vào / token ra", True),
-    "C1: 2 × 5,5k / 250 · C2: 2 × 18k / 2,5k · C3: 3,5 × 12k / 1k",
-    "C4: 8 × 15k / 300 · C5: 1,5 × 4k / 600 + 1 ảnh (C1–C5 = cấp 1–5)",
-    "Nguồn: Azure On your data (5 × 1.024 token), DA-Code, MCP-Universe, MCPMark"], size=11)
+with contextlib.redirect_stdout(io.StringIO()):
+    import sizing  # per-department task model (research/task-volume-by-role.md)
+dept = [(k, n * sum(r[1] for r in rows), n, sum(r[1] for r in rows)) for k, (n, rows) in sizing.D.items()]
+dept.sort(key=lambda d: -d[1])
+tier_names = {1: "Email, hỏi đáp", 2: "Viết tài liệu", 3: "Dữ liệu, code", 4: "Agent dự án", 5: "Thiết kế, sinh ảnh"}
+tiers = [(t, sizing.tot[t]) for t in range(1, 6)]
+T = sizing.T
+CAT = ["2a78d6", "eb6834", "1baf7a", "eda100", "e87ba4", "008300", "4a3aa7", "e34948"]  # dataviz categorical order, validated
+ORD = ["104281", "1c5cab", "2a78d6", "5598e7", "86b6ef"]  # one-hue ordinal ramp: cấp 1 darkest
+
+
+def pct(x):
+    return f"{x * 100:.1f}".replace(".", ",") + "%"
+
+
+def donut(slide, x, y, d, labels, values, colors, center):
+    cd = CategoryChartData()
+    cd.categories = labels
+    cd.add_series("s", values)
+    ch = slide.shapes.add_chart(XL_CHART_TYPE.DOUGHNUT, Inches(x), Inches(y), Inches(d), Inches(d), cd).chart
+    ch.has_legend = False; ch.has_title = False
+    plot = ch.plots[0]
+    plot._element.find(qn("c:holeSize")).set("val", "58")
+    for pt, col in zip(plot.series[0].points, colors):
+        pt.format.fill.solid(); pt.format.fill.fore_color.rgb = RGBColor.from_string(col)
+        pt.format.line.color.rgb = WHITE; pt.format.line.width = Pt(1.5)
+    text(slide, x + d * 0.2, y + d / 2 - 0.42, d * 0.6, 0.8, center, size=13, color=NAVY, bold_first=True, align=PP_ALIGN.CENTER)
+
+
+def legend(slide, x, y, rows, colors, name_w=2.15, val_w=1.05, row_h=0.31):
+    for i, ((name, val), col) in enumerate(zip(rows, colors)):
+        sw = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(x), Inches(y + i * row_h + 0.08), Inches(0.16), Inches(0.16))
+        sw.fill.solid(); sw.fill.fore_color.rgb = RGBColor.from_string(col); sw.line.fill.background()
+        text(slide, x + 0.2, y + i * row_h, name_w, row_h, name, size=11)
+        text(slide, x + 0.2 + name_w, y + i * row_h, val_w, row_h, val, size=11, align=PP_ALIGN.RIGHT)
+
+
+def r2(x):
+    return Decimal(str(x)).quantize(Decimal("0.01"), ROUND_HALF_UP)
+
+
+def vn(x):
+    return f"{r2(x)}".replace(".", ",")
+
+
+def share(k):
+    return f"{c[k] / TOTAL * 100:.0f}%"
+
+
+def badge(slide, x, y, n):
+    b = slide.shapes.add_shape(MSO_SHAPE.OVAL, Inches(x), Inches(y), Inches(0.32), Inches(0.32))
+    b.fill.solid(); b.fill.fore_color.rgb = TEAL; b.line.fill.background()
+    tf = b.text_frame; tf.margin_left = tf.margin_right = tf.margin_top = tf.margin_bottom = 0
+    tf.vertical_anchor = MSO_ANCHOR.MIDDLE
+    p = tf.paragraphs[0]; p.text = str(n); p.alignment = PP_ALIGN.CENTER
+    for r in p.runs:
+        r.font.size = Pt(12); r.font.bold = True; r.font.color.rgb = WHITE
+
+
+light = (tiers[0][1] + tiers[1][1]) / T
+heavy = (tiers[2][1] + tiers[3][1]) / T
+
+# ================================================================ 1a load
+s = header(f"1. Tải: {usd(T)} việc/ngày, {light * 100:.0f}% là việc nhẹ",
+           "Đề cho 2.000 người dùng mỗi ngày (DAU). Nhóm ước lượng từng việc của 8 phòng ban: số việc = khối lượng thật × tỉ lệ giao cho AI", "1a")
+text(s, 0.5, 1.5, 6.0, 0.4, "Ai tạo ra việc? Nhiệm vụ mỗi ngày theo phòng ban", size=14, color=NAVY, bold_first=True)
+donut(s, 0.35, 2.0, 2.7, [d[0] for d in dept], [d[1] for d in dept], CAT, [usd(T), "nhiệm vụ/ngày"])
+legend(s, 3.15, 2.0, [(f"{k} ({n})", f"{usd(v)} · {v / T * 100:.0f}%") for k, v, n, _ in dept], CAT, name_w=2.3, val_w=1.2)
+top, lead = dept[0], max(dept, key=lambda d: d[3])
+text(s, 0.5, 4.65, 6.0, 1.0, [
+    f"{top[0]} tạo nhiều việc nhất ({top[1] / T * 100:.0f}%) vì đông người nhất. "
+    f"{lead[0]} dùng nhiều nhất tính theo đầu người: {vn(lead[3])} nhiệm vụ/ngày (trung bình công ty: {vn(T / 2000)})."], size=12)
+text(s, 7.0, 1.5, 6.0, 0.4, "Việc gì? Nhiệm vụ chia theo 5 cấp", size=14, color=NAVY, bold_first=True)
+donut(s, 6.9, 1.95, 2.9, [f"Cấp {t}" for t, _ in tiers], [v for _, v in tiers], ORD, [pct(tiers[0][1] / T), "là cấp 1"])
+legend(s, 9.85, 2.0, [(f"Cấp {t}: {tier_names[t]}", pct(v / T)) for t, v in tiers], ORD, name_w=2.1, val_w=0.85)
+text(s, 7.0, 4.65, 6.0, 1.0, [f"{light * 100:.0f}% là việc nhẹ (cấp 1–2: email, hỏi đáp, tài liệu). Vì vậy một model rẻ đủ cho đa số (slide 4). "
+                              f"Việc nặng (cấp 3–4: chạy code, agent nhiều bước) chỉ chiếm {pct(heavy)}."], size=12)
+text(s, 0.5, 5.8, 12.3, 1.1, [
+    ("Ví dụ: mỗi người gửi 9,9 email/ngày; nhóm giả định 30% số email nhờ AI soạn → 9,9 × 30% = 2,97 nhiệm vụ. "
+     f"Cộng mọi việc của mọi phòng ra {usd(T)} nhiệm vụ/ngày.", True),
+    "Chi tiết từng việc, từng phòng ban và nguồn số liệu: Phụ lục C và D."], size=12)
+
+# ================================================================ 1b derived metrics
+s = header("1. Từ số việc ra token và tải lúc cao điểm",
+           "Hai con số quyết định chi phí: token mỗi tháng (tiền LLM) và lượt mỗi giây lúc cao điểm (số pod cần chạy)", "1b")
+table(s, 0.5, 1.5, 12.3, [
+    ["Chỉ số", "Giá trị", "Ảnh hưởng tới chi phí nào"],
+    ["Nhiệm vụ mỗi tháng", f"310.644 ({usd(T)} × 22 ngày làm việc)", "Mọi khoản tính theo lượt dùng"],
+    ["Lượt chat mỗi ngày", "27.098 (mỗi nhiệm vụ khoảng 2 lượt)", "Số lần gọi model"],
+    ["Lượt/giây lúc cao điểm", "1,13 (giờ bận nhất = 15% lưu lượng cả ngày)", f"compute: số pod ({usd(c['compute'])} USD/tháng)"],
+    ["Token mỗi tháng", "12,19 tỉ vào + 0,79 tỉ ra; 61% token vào đọc từ cache", f"llm: {usd(c['llm'])} USD/tháng; token đọc từ cache rẻ hơn 10 lần"],
+    ["Lượt chạy code (sandbox)", "140.800 lượt/tháng, tối đa 2 phút/lượt", f"sandbox: {usd(c['sandbox'])} USD/tháng"],
+    ["Ảnh sinh ra", "4.312 ảnh/tháng (chỉ cấp 5)", "Nằm trong llm: 147 USD/tháng"],
+    ["Dung lượng workspace", "4 TB dùng thật (2.000 người × 2 GB)", f"object_storage: {usd(c['object_storage'])} USD/tháng"]],
+    col_w=[3.0, 4.6, 4.7], size=13, row_h=0.5)
+text(s, 0.5, 5.75, 12.3, 1.1, [
+    ("Cách đọc: số việc → số lượt chat → số token. Token nhân với giá model ra tiền LLM.", True),
+    "Số token mỗi lượt theo từng cấp lấy từ benchmark công khai (Azure On your data, DA-Code, MCP-Universe, MCPMark); chi tiết ở Phụ lục B."], size=12)
 
 # ================================================================ 2 architecture
-s = header("2. Kiến trúc tổng thể", "Một cloud chính: GCP asia-southeast1 (Singapore), GKE Autopilot regional trên 2 zone. Mỗi hộp ghi mã component trong báo giá", 2)
+s = header("2. Kiến trúc: một region GCP, không có điểm lỗi đơn",
+           f"GCP Singapore vì rẻ nhất trong 3 cloud (6.821 USD/tháng; AWS 8.643, Azure 14.484). Số tròn là bước ở slide 3; chữ xanh là mã dòng trong báo giá", 2)
 box(s, 0.3, 1.7, 1.6, 0.9, "Nhân viên", "trình duyệt", fill=WHITE)
-box(s, 2.2, 1.6, 2.0, 1.1, "Cloud Armor WAF + HTTPS LB", "network · load_balancer")
-box(s, 4.5, 1.6, 2.0, 1.1, "IAP + IdP tập đoàn (SSO, MFA)", "authn")
+box(s, 2.2, 1.6, 2.0, 1.1, "Tường lửa web + cân bằng tải", "network · load_balancer")
+box(s, 4.5, 1.6, 2.0, 1.1, "IAP + SSO tập đoàn (MFA)", "authn")
 arrow(s, 1.9, 2.15, 2.2, 2.15); arrow(s, 4.2, 2.15, 4.5, 2.15)
 g = s.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(6.8), Inches(1.4), Inches(6.2), Inches(3.1))
 g.fill.background(); g.line.color.rgb = TEAL; g.line.dash_style = 4
-text(s, 6.9, 1.42, 6, 0.3, "GKE Autopilot regional, 2 zone · compute (prod; staging là namespace riêng)", size=10, color=TEAL)
-box(s, 7.0, 1.8, 1.8, 1.0, "Web/API, SSE", "compute")
+text(s, 6.9, 1.42, 6, 0.3, "Cụm GKE Autopilot chạy trên 2 zone (prod; staging dùng chung cụm)", size=10, color=TEAL)
+box(s, 7.0, 1.8, 1.8, 1.0, "Web/API (stream câu trả lời)", "compute")
 box(s, 9.0, 1.8, 1.9, 1.0, "LiteLLM gateway (quota USD)", "gateway · authz")
-box(s, 11.1, 1.8, 1.8, 1.0, "Worker connector, agent", "connectors")
-box(s, 9.0, 3.1, 1.9, 1.1, "Sandbox gVisor, chặn egress", "sandbox")
+box(s, 11.1, 1.8, 1.8, 1.0, "Worker: connector, agent", "connectors")
+box(s, 9.0, 3.1, 1.9, 1.1, "Sandbox chạy code, không có mạng ra ngoài", "sandbox")
 box(s, 11.1, 3.1, 1.8, 1.1, "Cloud NAT → 11 SaaS (OAuth của user)", "network")
-box(s, 7.0, 3.1, 1.8, 1.1, "Model Armor (guardrail, DLP)", "governance")
+box(s, 7.0, 3.1, 1.8, 1.1, "Model Armor (guardrail, che PII)", "governance")
 arrow(s, 6.5, 2.15, 7.0, 2.3)
-box(s, 0.3, 3.4, 2.1, 1.1, "Vertex AI qua PSC: Haiku 5.5, embedding, ảnh", "llm · embedding")
-box(s, 2.6, 3.4, 2.0, 1.1, "Cloud SQL PG HA + pgvector + RLS", "database · vector_db")
-box(s, 4.8, 3.4, 1.8, 1.1, "Valkey HA + Cloud Tasks", "cache_queue")
-box(s, 0.3, 4.9, 2.1, 1.0, "GCS workspace dual-region", "object_storage")
-box(s, 2.6, 4.9, 2.0, 1.0, "Cloud KMS + Secret Manager", "secrets_kms")
-box(s, 4.8, 4.9, 1.8, 1.0, "Logging, Prometheus, Trace", "monitoring")
-box(s, 6.8, 4.9, 2.0, 1.0, "Backup + DR Jakarta", "backup_dr")
-box(s, 9.0, 4.9, 1.9, 1.0, "Cloud Build + Artifact Registry", "cicd")
-box(s, 11.1, 4.9, 1.8, 1.0, "2 FTE SRE + MLOps", "ops_labor")
-text(s, 0.3, 6.1, 12.7, 0.8, ["Không có điểm lỗi đơn: LB managed chạy đa zone; mỗi pod có 2 replica ở 2 zone; Cloud SQL có standby ở zone khác; Valkey có primary và replica. "
-                              "Dữ liệu lưu tại Singapore. Suy luận đi qua endpoint global của Vertex AI, có cam kết không lưu dữ liệu (zero-retention) và không dùng dữ liệu để huấn luyện."], size=11)
+box(s, 0.3, 3.4, 2.1, 1.1, "Vertex AI qua kết nối riêng: Haiku 5.5, embedding, ảnh", "llm · embedding")
+box(s, 2.6, 3.4, 2.0, 1.1, "Postgres HA + tìm kiếm vector", "database · vector_db")
+box(s, 4.8, 3.4, 1.8, 1.1, "Cache + hàng đợi việc nền", "cache_queue")
+box(s, 0.3, 4.9, 2.1, 1.0, "Lưu file workspace (2 region)", "object_storage")
+box(s, 2.6, 4.9, 2.0, 1.0, "Khóa mã hóa, secret", "secrets_kms")
+box(s, 4.8, 4.9, 1.8, 1.0, "Log, metric, trace", "monitoring")
+box(s, 6.8, 4.9, 2.0, 1.0, "Backup + DR sang Jakarta", "backup_dr")
+box(s, 9.0, 4.9, 1.9, 1.0, "Build, deploy", "cicd")
+box(s, 11.1, 4.9, 1.8, 1.0, "2 kỹ sư vận hành", "ops_labor")
+for n, (bx, by) in enumerate([(2.2, 1.6), (7.0, 3.1), (4.8, 3.4), (11.1, 1.8), (9.0, 1.8), (11.1, 3.1)], 1):
+    badge(s, bx - 0.14, by - 0.14, n)
+text(s, 0.3, 6.1, 12.7, 0.8, ["Mỗi thành phần có bản thứ hai ở zone khác (slide 9). Dữ liệu lưu tại Singapore; Vertex AI cam kết không lưu và không dùng dữ liệu để huấn luyện.",
+                              "H1–H8 là 8 ràng buộc cứng của đề: H1 cloud · H2 phân quyền · H3 cô lập user · H4 AI governance · H5 data governance · H6 độ trễ · H7 HA, DR · H8 chất lượng, chi phí"], size=11)
 
 # ================================================================ 3 request flow
-s = header("3. Luồng một request: \"Tóm tắt thread email dự án X, rồi tạo 3 ticket Jira\"", None, 3)
+s = header("3. Một request đi qua 3 cổng: SSO, guardrail, xác nhận",
+           "Ví dụ: \"Tóm tắt thread email dự án X, rồi tạo 3 ticket Jira\". Số bước khớp với số tròn trên sơ đồ slide 2", 3)
 steps = [
-    "1. Trình duyệt gửi request qua Cloud Armor (WAF) và HTTPS LB. IAP kiểm tra phiên SSO với IdP tập đoàn (có MFA).",
-    "2. Web/API lấy user_id và group từ token, rồi ghi audit. Model Armor quét tin nhắn mới để tìm prompt injection và PII.",
-    "3. Router xếp request vào cấp 4, đẩy job vào Cloud Tasks và trả ngay \"đang chạy nền\" (thời gian đến token đầu tiên, TTFT, < 3 s).",
-    "4. Worker giải mã OAuth token của chính user (KMS envelope), rồi tìm email qua Gmail/Graph API bằng quyền của user đó.",
-    "5. Worker đánh dấu nội dung email là \"không tin cậy\", cho Model Armor quét, và tách nội dung này khỏi chỉ dẫn hệ thống.",
-    "6. LiteLLM kiểm tra quota USD của user và phòng ban, rồi gọi Claude Haiku 5.5 trên Vertex AI qua PSC. Agent chạy 8 bước.",
-    "7. Agent đề xuất 3 ticket. User xem người nhận và nội dung trên một màn hình duyệt chung, rồi bấm xác nhận.",
-    "8. Worker tạo ticket bằng OAuth của user, ghi audit, và báo \"xong\" qua web và email (tối đa 10 phút).",
-    "Nếu cần chạy code (cấp 3): worker tạo pod sandbox gVisor, chỉ mount thư mục workspace của user, chặn egress, giới hạn 2–10 phút, và hủy pod ngay sau khi chạy.",
+    ("1. Đăng nhập", True),
+    "Request đi qua tường lửa web. IAP kiểm tra đăng nhập SSO và MFA của tập đoàn.",
+    ("2. Kiểm tra đầu vào (cổng guardrail)", True),
+    "Model Armor quét tin nhắn để chặn prompt injection và lộ dữ liệu cá nhân. Mọi bước đều ghi audit.",
+    ("3. Chạy nền", True),
+    "Việc nhiều bước (cấp 4) vào hàng đợi. User nhận \"đang chạy nền\" ngay, dưới 3 giây (H6).",
+    ("4. Đọc email bằng quyền của chính user", True),
+    "Worker dùng OAuth token của user để tìm email. Nội dung email được đánh dấu \"không tin cậy\", không phải chỉ dẫn.",
+    ("5. Gọi model", True),
+    "LiteLLM kiểm tra quota USD của user, rồi gọi Claude Haiku 5.5 trên Vertex AI. Agent đề xuất 3 ticket.",
+    ("6. User xác nhận rồi mới ghi (cổng xác nhận)", True),
+    "User duyệt 3 ticket trên một màn hình. Worker tạo ticket, ghi audit, báo \"xong\" (tối đa 10 phút, H6).",
 ]
-text(s, 0.6, 1.3, 12.2, 5.5, steps, size=14)
+text(s, 0.6, 1.6, 12.2, 5.3, steps, size=16)
 
 # ================================================================ 4 model routing
-s = header("4. Model và routing", "Dùng API model managed trên Vertex AI, không tự host GPU. Mặc định dùng một model rẻ; eval gate quyết định khi nào nâng cấp", 4)
+s = header("4. Haiku 5.5 cho cả 5 cấp: 947 USD/tháng",
+           "Dùng API model trên Vertex AI, không tự host GPU. Chỉ nâng một cấp lên Sonnet 5.5 khi eval của cấp đó dưới 95%", 4)
 table(s, 0.5, 1.5, 12.3, [
-    ["Cấp", "Model", "Chế độ", "Lượt/ngày", "USD/tháng", "Nâng lên khi eval < 95%"],
-    ["1 Email, hỏi đáp", "Claude Haiku 5.5", "không reasoning (H6)", "20.507", "386", "Sonnet 5.5"],
-    ["2 Tài liệu", "Claude Haiku 5.5", "không reasoning (H6)", "3.153", "288", "Sonnet 5.5"],
-    ["3 Dữ liệu, code", "Claude Haiku 5.5", "reasoning thấp", "2.099", "161", "Sonnet 5.5 (+2.939)"],
-    ["4 Agent dự án", "Claude Haiku 5.5", "reasoning thấp, chạy nền", "1.042", "105", "Sonnet 5.5 (+1.766)"],
+    ["Cấp", "Model", "Chế độ", "Lượt/ngày", "USD/tháng", "Nếu eval < 95%: nâng lên"],
+    ["1 Email, hỏi đáp", "Claude Haiku 5.5", "tắt reasoning (cần nhanh)", "20.507", "386", "Sonnet 5.5"],
+    ["2 Tài liệu", "Claude Haiku 5.5", "tắt reasoning (cần nhanh)", "3.153", "288", "Sonnet 5.5"],
+    ["3 Dữ liệu, code", "Claude Haiku 5.5", "reasoning thấp", "2.099", "161", "Sonnet 5.5: +2.939 USD"],
+    ["4 Agent dự án", "Claude Haiku 5.5", "reasoning thấp, chạy nền", "1.042", "105", "Sonnet 5.5: +1.766 USD"],
     ["5 Thiết kế", "Haiku 5.5 + Gemini 3.1 Flash-Lite Image", "1 ảnh/lượt", "297", "7 + 147 ảnh", "—"],
-    ["Embedding", "gemini-embedding-001", "KB chung + workspace", "—", "20", "—"]],
-    col_w=[1.8, 2.9, 2.2, 1.3, 1.6, 2.5], size=12)
-text(s, 0.5, 4.2, 6.0, 2.7, [
-    ("Model tham chiếu theo H8: Claude Opus 5.5", True),
-    "Golden set: 100 nhiệm vụ thật cho mỗi cấp, đã che PII",
-    "Chấm điểm: Opus làm giám khảo (LLM-as-judge), người chấm lại 10%; cấp 3 kiểm tra thêm code có chạy đúng không",
-    "Đạt khi điểm của Haiku ≥ 95% điểm của Opus. Chạy lại mỗi lần đổi model hoặc prompt (4 lần/tháng: 525 USD)"], size=12)
-text(s, 6.8, 4.2, 6.0, 2.7, [
-    ("Lý do chọn Haiku 5.5", True),
-    "Giá 0,10 / 0,50 USD mỗi 1M token vào / ra, đọc cache 0,01; giá như nhau trên GCP, AWS và Azure",
-    "AA Intelligence Index 43 (chế độ max), cao nhất trong nhóm cùng mức giá (GPT-6 Luna: 38)",
-    "Tốc độ 182–238 token/giây. Cả 5 cấp chỉ tốn 947 USD/tháng (dùng Opus cho mọi cấp: 36.380)",
-    "Rủi ro: chưa có số đo TTFT khi tắt reasoning → đo trong giai đoạn pilot"], size=12)
+    ["Embedding", "gemini-embedding-001", "tìm kiếm tài liệu", "—", "20", "—"]],
+    col_w=[1.8, 2.9, 2.3, 1.2, 1.5, 2.6], size=12)
+text(s, 0.5, 4.2, 6.0, 2.3, [
+    ("Cách giữ chất lượng (eval gate, H8)", True),
+    "Bộ kiểm tra: 100 nhiệm vụ thật cho mỗi cấp, đã che dữ liệu cá nhân",
+    "Claude Opus 5.5 làm bài mẫu và chấm điểm; người chấm lại 10%",
+    "Đạt khi điểm Haiku ≥ 95% điểm Opus. Chạy lại mỗi lần đổi model hoặc prompt (525 USD/tháng)"], size=12)
+text(s, 6.8, 4.2, 6.0, 2.3, [
+    ("Vì sao Haiku 5.5", True),
+    "Rẻ: 0,10 USD/1M token vào, 0,50 USD/1M token ra; token đọc từ cache chỉ 0,01",
+    "Điểm chất lượng cao nhất trong nhóm model cùng tầm giá (Artificial Analysis)",
+    "Dùng Opus cho mọi cấp sẽ tốn 36.380 USD/tháng, gấp 38 lần",
+    "Rủi ro: chưa có số đo độ trễ khi tắt reasoning → đo trong pilot"], size=12)
+text(s, 0.5, 6.5, 12.3, 0.4, f"947 USD là tiền text. Cộng 147 USD tiền ảnh ≈ dòng llm {usd(c['llm'])} USD ở slide 11.", size=11)
 
 # ================================================================ 5 tech choices
-s = header("5. Lý do chọn công nghệ: so sánh có số liệu", "Giá niêm yết tại Singapore, đọc ngày 16/10/2026 (USD/tháng)", 5)
+s = header("5. Mỗi lựa chọn đều rẻ hơn phương án thay thế",
+           "Chọn phương án rẻ nhất mà vẫn đạt đủ ràng buộc H1–H8. Đơn vị: USD/tháng", 5)
 table(s, 0.5, 1.5, 12.3, [
     ["Quyết định", "Chọn", "Phương án so sánh", "Lý do"],
-    ["Cloud chính", "GCP: 6.821", "AWS 8.643 · Azure 14.484", "Rẻ nhất; chênh lệch chủ yếu ở guardrail (Model Armor: 0,10 USD/1M token)"],
-    ["LLM gateway", "LiteLLM tự chạy: 0 license", "Apigee ~1.595 · Azure APIM Std v2 ~700", "Phương án duy nhất có quota theo USD cho từng user và phòng ban (H8)"],
-    ["Model", "Haiku 5.5 cả 5 cấp: 947", "Sonnet cấp 3–4: 5.652 · Opus: 36.380", "Routing theo cấp + eval gate; chỉ nâng cấp khi eval không đạt"],
-    ["Vector DB", "pgvector trong Cloud SQL: 0", "Vertex Vector Search ~84 · OpenSearch ~413", "Index nhỏ (KB chung + workspace); lọc ACL bằng SQL"],
-    ["Token vault", "KMS envelope trong Postgres: ~4", "Secret Manager 12.000 secret ~720", "Vẫn mã hóa và có audit, nhưng rẻ hơn 180 lần"],
-    ["Sandbox", "GKE Sandbox gVisor: 315", "Agent Engine 483 · AgentCore 509", "Có sẵn trên Autopilot; NetworkPolicy chặn egress"],
+    ["Cloud chính", "GCP: 6.821 (tổng)", "AWS 8.643 · Azure 14.484", "Rẻ nhất; chênh lệch chủ yếu ở guardrail"],
+    ["LLM gateway", "LiteLLM tự chạy: 0 tiền license", "Apigee ~1.595 · Azure APIM ~700", "Duy nhất có quota USD theo từng user và phòng ban (H8)"],
+    ["Tìm kiếm vector", "pgvector trong Postgres: 0 thêm", "Vertex Vector Search ~84 · OpenSearch ~413", "Dữ liệu nhỏ; lọc quyền bằng SQL ngay trong database"],
+    ["Cất token OAuth", "Mã hóa bằng KMS, lưu trong Postgres: ~4", "Secret Manager (12.000 secret) ~720", "Vẫn mã hóa và có audit, rẻ hơn 180 lần"],
+    ["Sandbox", "GKE Sandbox (gVisor): 315", "Agent Engine 483 · AgentCore 509", "Có sẵn trên cụm GKE; chặn mạng ra ngoài bằng NetworkPolicy"],
     ["Guardrail", "Chỉ quét text mới: 281", "Quét toàn bộ token: 1.298", "Mỗi đoạn text chỉ quét một lần, khi vào hệ thống"],
-    ["Connector", "Hybrid: gọi API bằng OAuth của user", "Crawl toàn bộ vào index", "SaaS tự áp quyền gốc; không cần service account quyền rộng"]],
-    col_w=[1.7, 2.9, 3.4, 4.3], size=11, row_h=0.5)
+    ["Connector", "Gọi API bằng OAuth của user", "Crawl toàn bộ dữ liệu vào index", "SaaS tự áp quyền gốc; không cần tài khoản quyền rộng"]],
+    col_w=[1.7, 3.1, 3.3, 4.2], size=12, row_h=0.55)
+text(s, 0.5, 6.4, 12.3, 0.5, "Giá niêm yết tại Singapore, đọc ngày 16/10/2026. Lựa chọn model: slide 4.", size=11)
 
 # ================================================================ 6 connectors & authz
-s = header("6. Connector và phân quyền (H2)", "11 connector: Gmail, Drive, Calendar, Docs/Sheets/Slides, Outlook, M365, OneDrive/SharePoint, Teams, Notion, Jira, Confluence", 6)
-text(s, 0.5, 1.6, 6.1, 5.2, [
-    ("Định danh", True),
-    "SSO qua OIDC/SAML với IdP sẵn có của tập đoàn; IdP bật MFA; IAP + Workforce Identity Federation",
-    "RBAC theo group trong token (ví dụ: chỉ nhóm IT dùng sandbox hạng mở rộng)",
-    ("OAuth ủy quyền với scope tối thiểu", True),
-    "Mỗi user tự cấp quyền cho từng SaaS. Quyền đọc: gmail.readonly, Files.Read, read:jira-work…",
-    "Chỉ xin quyền ghi khi cần (gmail.send, write:jira-work); không dùng service account quyền rộng",
-    "Google OAuth app ở chế độ Internal, nên không cần đánh giá CASA",
-    ("Token vault", True),
-    "Data key mã hóa refresh token; Cloud KMS mã hóa data key (envelope encryption)",
-    "Chỉ service account của worker được giải mã, và chỉ cho user của request đang chạy. Mỗi lần giải mã đều ghi audit"], size=12)
-text(s, 6.9, 1.6, 6.0, 5.2, [
-    ("ACL tài liệu theo quyền gốc", True),
-    "Dữ liệu cá nhân (mail, lịch, Jira): worker gọi search API của SaaS bằng token của user, nên SaaS tự áp quyền",
-    "KB chung đã index: mỗi chunk có allowed_groups; mọi truy vấn pgvector đều lọc theo group của user (WHERE)",
-    "Workspace: cột owner_id + Row-Level Security (RLS) của Postgres",
-    ("Rate limit đã kiểm tra", True),
-    "Jira/Confluence 65.000 điểm/giờ/app · Notion 180 req/phút · Teams 1 req/s/user",
-    "Worker dùng hàng đợi và backoff; ưu tiên webhook thay cho polling",
-    ("Chi phí", True),
-    "API của 11 SaaS không tính phí theo lượt gọi; tập đoàn đã có license SaaS"], size=12)
+s = header("6. Agent chỉ thấy những gì user được thấy (H2)",
+           "Agent dùng 11 connector (Google, Microsoft, Atlassian, Notion) bằng quyền OAuth của chính user", 6)
+text(s, 0.5, 1.6, 6.1, 4.8, [
+    ("Đăng nhập", True),
+    "SSO bằng tài khoản tập đoàn có sẵn, bắt buộc MFA",
+    "Phân quyền chức năng theo nhóm (ví dụ: chỉ IT dùng sandbox hạng lớn)",
+    ("Agent mượn quyền của user (OAuth)", True),
+    "Mỗi user tự cho phép từng SaaS; mặc định chỉ quyền đọc",
+    "Quyền ghi (gửi email, tạo ticket) chỉ xin khi cần",
+    "Không dùng tài khoản dịch vụ có quyền rộng"], size=15)
+text(s, 6.9, 1.6, 6.0, 4.8, [
+    ("Token được cất an toàn", True),
+    "Token OAuth được mã hóa bằng khóa trong Cloud KMS, lưu trong Postgres",
+    "Chỉ worker được giải mã, và chỉ cho đúng user của request. Mỗi lần giải mã đều ghi audit",
+    ("Tài liệu giữ quyền gốc", True),
+    "Mail, lịch, Jira: agent gọi search API của SaaS bằng token của user, nên SaaS tự lọc quyền",
+    "Tài liệu chung đã index: mỗi đoạn ghi nhóm được xem; mọi truy vấn lọc theo nhóm của user"], size=15)
+text(s, 0.5, 6.4, 12.3, 0.5, "API của 11 SaaS không tính phí theo lượt; tập đoàn đã có license SaaS. Rate limit của SaaS: slide 12.", size=11)
 
 # ================================================================ 7 workspace & sandbox
-s = header("7. Workspace riêng và sandbox (H3)", "\"Agent của A có đọc được file của B không?\" Không. Có 4 lớp chặn:", 7)
+s = header("7. File của user A không lộ sang user B (H3)",
+           "\"Agent của A có đọc được file của B không?\" Không, vì có 4 lớp chặn:", 7)
 table(s, 0.5, 1.5, 6.2, [
-    ["Lớp", "Cơ chế"],
-    ["Lưu trữ", "Bucket GCS chia prefix theo user_id; IAM chỉ cấp quyền cho service account của app; app áp quota 10 GB/user"],
-    ["Database", "RLS theo owner_id cho chat, bộ nhớ dài hạn và metadata của file"],
-    ["Tìm kiếm", "Mọi truy vấn pgvector bắt buộc lọc theo owner_id hoặc allowed_groups"],
-    ["Connector", "Dùng token OAuth của chính user, nên không thấy dữ liệu của người khác"]],
-    col_w=[1.3, 4.9], size=11, row_h=0.55)
-text(s, 7.0, 1.5, 5.9, 5.3, [
-    ("Sandbox chạy code của agent", True),
-    "GKE Sandbox (gVisor, kernel chạy ở userspace): mỗi lượt một pod, hủy pod sau khi chạy",
-    "Hạng mặc định: 1 vCPU, 2 GB, 2 phút. Hạng mở rộng: 2 vCPU, 4 GB, 10 phút. Đĩa tạm 5 GB",
-    "Chỉ mount thư mục workspace của đúng user; đọc/ghi qua sidecar dùng token ngắn hạn",
-    "NetworkPolicy chặn mọi egress: không ra internet, không vào mạng nội bộ",
-    "Chặn metadata server (Workload Identity với service account không có quyền); node không có quyền IAM",
-    "Image dựng sẵn (pandas, openpyxl, python-docx/pptx, matplotlib, Node); không cài thư viện lúc chạy",
-    ("Nếu code cố thoát ra node?", True),
-    "Mọi syscall đi qua gVisor. Pod không chạy privileged, không mount hostPath, và bị kill khi hết thời gian"], size=12)
+    ["Lớp", "Cách chặn"],
+    ["Lưu trữ", "Mỗi user một thư mục riêng; chỉ app có quyền vào bucket"],
+    ["Database", "Postgres tự lọc dòng theo người sở hữu (Row-Level Security)"],
+    ["Tìm kiếm", "Mọi truy vấn bắt buộc lọc theo người sở hữu hoặc nhóm"],
+    ["Connector", "Dùng OAuth của chính user, nên không thấy dữ liệu người khác"]],
+    col_w=[1.3, 4.9], size=14, row_h=0.7)
+text(s, 7.0, 1.5, 5.9, 5.0, [
+    ("Sandbox: code của agent chạy trong hộp kín", True),
+    "gVisor ngăn code chạm trực tiếp vào kernel của máy chủ",
+    "Không có mạng ra ngoài: không internet, không mạng nội bộ",
+    "Chỉ thấy thư mục workspace của đúng user đó",
+    "Tối đa 2 phút (hạng lớn 10 phút); chạy xong hoặc hết giờ thì hủy pod",
+    ("Code cố thoát ra máy chủ?", True),
+    "Bị gVisor chặn. Pod không có quyền đặc biệt và không gọi được API của cloud"], size=15)
 
 # ================================================================ 8 governance
-s = header("8. AI governance và data governance (H4, H5)", "\"Một email chứa lệnh ẩn: gửi toàn bộ hợp đồng ra ngoài.\" Hệ thống xử lý thế nào?", 8)
-text(s, 0.5, 1.5, 6.1, 5.3, [
-    ("Chống prompt injection", True),
-    "Model Armor quét tin nhắn mới, nội dung từ connector và output cuối (281 USD/tháng)",
-    "Nội dung từ connector nằm trong khối \"dữ liệu không tin cậy\"; model không coi đó là chỉ dẫn",
-    "Chỉ yêu cầu của user mới kích hoạt được hành động ghi; nội dung từ connector thì không",
-    ("Xác nhận trước hành động ghi", True),
-    "Rủi ro cao (gửi ra ngoài tập đoàn, xóa, chia sẻ quyền): user xác nhận từng hành động",
-    "Rủi ro thấp (ticket, trang, email nháp): user duyệt cả nhóm một lần; màn hình hiện người nhận, nội dung và tệp đính kèm",
-    "Sandbox chặn egress, nên code không gửi được dữ liệu ra ngoài",
+s = header("8. Lệnh ẩn trong email bị chặn ở 3 chỗ (H4, H5)",
+           "\"Một email chứa lệnh ẩn: gửi toàn bộ hợp đồng ra ngoài.\" Lệnh này không chạy được, vì:", 8)
+text(s, 0.5, 1.5, 6.1, 5.0, [
+    ("1. Guardrail quét nội dung", True),
+    "Model Armor quét tin nhắn mới, nội dung từ connector và câu trả lời cuối (281 USD/tháng)",
+    ("2. Nội dung email chỉ là dữ liệu", True),
+    "Nội dung từ connector được đánh dấu \"không tin cậy\". Chỉ yêu cầu của user mới kích hoạt được hành động ghi",
+    ("3. User xác nhận trước khi ghi", True),
+    "Gửi ra ngoài, xóa, chia sẻ quyền: xác nhận từng việc. Ticket, email nháp: duyệt một lần cho cả nhóm",
+    "Thêm nữa: sandbox không có mạng ra ngoài, nên code cũng không gửi được dữ liệu"], size=14)
+text(s, 6.9, 1.5, 6.0, 5.0, [
+    ("Bảo vệ dữ liệu", True),
+    "Mã hóa khi lưu và khi truyền",
+    "Che dữ liệu cá nhân (PII) trước khi gửi cho model",
+    "Vertex AI không lưu và không dùng dữ liệu để huấn luyện",
+    "Audit log 12 tháng: ai, lúc nào, dùng tool nào, xác nhận hành động gì",
     ("Eval gate", True),
-    "Mỗi lần đổi model hoặc prompt, chạy golden set trên staging. Điểm < 95% thì không deploy"], size=12)
-text(s, 6.9, 1.5, 6.0, 5.3, [
-    ("Data governance", True),
-    "Mã hóa khi lưu (Google-managed key; riêng token dùng KMS) và khi truyền (TLS, PSC)",
-    "Sensitive Data Protection (đi kèm Model Armor) che PII",
-    "Phân loại dữ liệu theo nhãn nguồn (HR, pháp chế: nhạy cảm cao)",
-    "Thời hạn lưu: audit 12 tháng (truy vấn được 30 ngày, sau đó archive); chat 12 tháng; file tạm 30 ngày; prompt log 30 ngày, đã che PII",
-    "Vertex AI không dùng dữ liệu để huấn luyện; tắt durable cache để không lưu dữ liệu (zero-retention)",
-    ("Audit log", True),
-    "Ghi ai, lúc nào, tool và connector nào, hành động ghi nào đã được xác nhận. Chỉ nhóm bảo mật được đọc"], size=12)
+    "Đổi model hoặc prompt phải chạy lại bộ kiểm tra; dưới 95% thì không deploy (525 USD/tháng)"], size=14)
+text(s, 0.5, 6.4, 12.3, 0.5, f"Dòng governance ở slide 11 = 281 USD guardrail + 525 USD eval = {usd(c['governance'])} USD/tháng. "
+                             "Thời hạn lưu khác: chat 12 tháng, file tạm 30 ngày, prompt log 30 ngày (đã che PII).", size=11)
 
 # ================================================================ 9 HA DR
-s = header("9. HA, backup và DR (H7)", "Mục tiêu: 99,5% trong giờ hành chính · RTO 4 giờ · RPO 1 giờ", 9)
+s = header("9. Mất 1 zone: tự chuyển trong 1–2 phút (H7)",
+           "Đề yêu cầu: chạy 99,5% giờ hành chính, khôi phục trong 4 giờ (RTO), mất tối đa 1 giờ dữ liệu (RPO)", 9)
 table(s, 0.5, 1.5, 7.0, [
-    ["Thành phần", "HA", "Backup / DR"],
-    ["LB, Cloud Armor", "Managed, đa zone", "—"],
-    ["GKE Autopilot", "Regional; mỗi pod 2 replica ở 2 zone", "Dựng lại bằng Terraform"],
-    ["LiteLLM, web, worker", "2 replica, 2 zone", "Image lưu trong Artifact Registry"],
-    ["Cloud SQL", "Standby ở zone khác, failover tự động", "Backup hằng ngày + PITR; bản sao ở Jakarta"],
-    ["Valkey", "Primary + replica", "Không cần (chỉ chứa dữ liệu tạm)"],
-    ["GCS workspace", "Regional, đa zone", "Dual-region"],
+    ["Thành phần", "Chạy liên tục (HA)", "Backup, khôi phục (DR)"],
+    ["Tường lửa, cân bằng tải", "Managed, đa zone", "—"],
+    ["Cụm GKE", "Mỗi pod 2 bản ở 2 zone", "Dựng lại bằng Terraform"],
+    ["LiteLLM, web, worker", "2 bản, 2 zone", "Image lưu trong Artifact Registry"],
+    ["Postgres (Cloud SQL)", "Bản dự phòng ở zone khác, tự chuyển", "Backup hằng ngày, khôi phục về thời điểm bất kỳ; bản sao ở Jakarta"],
+    ["Cache", "Bản chính + bản phụ", "Không cần (chỉ dữ liệu tạm)"],
+    ["File workspace", "Đa zone", "Lưu ở 2 region"],
     ["Vertex AI", "Endpoint global", "Model dự phòng qua LiteLLM"]],
-    col_w=[1.9, 2.5, 2.6], size=11, row_h=0.42)
-text(s, 7.8, 1.5, 5.1, 5.3, [
+    col_w=[1.9, 2.4, 2.7], size=11, row_h=0.45)
+text(s, 7.8, 1.5, 5.1, 5.2, [
     ("Khi mất 1 zone lúc 10:00", True),
-    "LB ngừng gửi traffic vào zone hỏng. Pod ở zone còn lại nhận tải; Autopilot tạo thêm pod",
-    "Cloud SQL failover sang standby, thường trong vài chục giây đến 1–2 phút. Chỉ mất các giao dịch đang chạy",
-    "Một số request bị lỗi; user gửi lại được. Dữ liệu đã commit không mất",
+    "Cân bằng tải chuyển traffic sang zone còn lại; GKE tạo thêm pod",
+    "Postgres tự chuyển sang bản dự phòng trong vài chục giây đến 1–2 phút",
+    "Vài request lỗi, user gửi lại được; dữ liệu đã lưu không mất",
     ("Khi mất cả region Singapore", True),
-    "Dựng lại ở Jakarta bằng Terraform, backup DB đã sao chép và bucket dual-region. Mất ≤ 4 giờ và ≤ 1 giờ dữ liệu",
-    ("Diễn tập", True),
-    "Khôi phục DB từ backup mỗi quý. Diễn tập dựng region DR mỗi 6 tháng",
-    ("Chi phí", True),
-    "backup_dr: 164 USD/tháng (gồm 153 USD cho DR sang Jakarta)"], size=12)
+    "Dựng lại ở Jakarta bằng Terraform và backup đã sao chép: ≤ 4 giờ, mất ≤ 1 giờ dữ liệu",
+    ("Diễn tập và chi phí", True),
+    f"Thử khôi phục DB mỗi quý, dựng region DR mỗi 6 tháng. backup_dr: {usd(c['backup_dr'])} USD/tháng"], size=12)
 
 # ================================================================ 10 monitoring finops
-s = header("10. Monitoring và FinOps (H8)", "Đo gì, cảnh báo khi nào, và chi phí theo từng user và phòng ban", 10)
-text(s, 0.5, 1.5, 6.1, 5.3, [
-    ("Chỉ số đo", True),
-    "SLO: tỉ lệ thành công, p95 TTFT theo cấp, thời gian chạy agent nền, lỗi connector theo từng SaaS",
-    "LiteLLM: token vào/ra/cache; USD theo user, phòng ban, model và cấp",
-    "Hạ tầng: CPU/RAM của pod, Cloud SQL, hàng đợi Cloud Tasks, số lượt sandbox",
-    "An toàn: số lần Model Armor chặn, số hành động ghi bị user từ chối",
-    ("Cảnh báo", True),
-    "p95 TTFT > 3 s trong 10 phút · agent chạy > 10 phút · tỉ lệ lỗi > 2% · Cloud SQL failover",
-    "Cache hit < 50% (chi phí sẽ tăng) · chi tiêu trong ngày vượt dự báo 20%"], size=12)
+per_user = (c['llm'] + c['governance'] + c['sandbox']) / 2000
+s = header("10. Mỗi user có quota USD; vượt thì hạ cấp (H8)",
+           "LiteLLM ghi chi phí của từng user và phòng ban, nên mỗi tháng biết ai tiêu bao nhiêu và chặn được khi vượt", 10)
+text(s, 0.5, 1.5, 6.1, 5.0, [
+    ("Cảnh báo chính", True),
+    "Chậm: p95 thời gian tới token đầu tiên > 3 giây trong 10 phút",
+    "Agent chạy quá 10 phút; tỉ lệ lỗi > 2%",
+    "Cache hit < 50%, tức chi phí LLM sắp tăng",
+    "Chi tiêu trong ngày vượt dự báo 20%",
+    ("Dashboard", True),
+    "Token và USD theo user, phòng ban, model, cấp",
+    "Số lần guardrail chặn, số hành động ghi bị user từ chối"], size=13)
 table(s, 6.9, 1.5, 6.0, [
-    ["Ngưỡng quota (USD/tháng)", "Hành động"],
+    ["Mức dùng quota tháng", "Hành động"],
     ["80%", "Cảnh báo user; báo trưởng phòng nếu là quota phòng"],
     ["100%", "Hạ cấp: cấp 1–2 chỉ dùng model rẻ nhất; khóa cấp 4–5"],
     ["120%", "Chặn đến đầu tháng sau, trừ khi trưởng phòng duyệt"],
     ["90% ngân sách hệ thống", "Cảnh báo nhóm FinOps và ban IT"]],
-    col_w=[2.2, 3.8], size=11, row_h=0.5)
-text(s, 6.9, 4.3, 6.0, 2.5, [
-    ("Chi phí theo đầu người", True),
-    "LLM + guardrail + sandbox ≈ " + usd(c['llm'] + c['governance'] + c['sandbox']) + " USD/tháng, tức " + f"{(c['llm'] + c['governance'] + c['sandbox'])/2000:.2f}".replace(".", ",") + " USD/user/tháng",
-    "Quota mặc định đề xuất: 3 USD/user/tháng (khoảng 2 lần mức trung bình)",
-    "Báo cáo hằng tháng theo phòng ban, lấy từ log chi tiêu của LiteLLM"], size=12)
+    col_w=[2.2, 3.8], size=12, row_h=0.5)
+text(s, 6.9, 4.3, 6.0, 2.3, [
+    ("Quota đặt bao nhiêu?", True),
+    f"Chi phí theo lượt dùng (LLM + guardrail + sandbox) ≈ {vn(per_user)} USD/user/tháng",
+    f"Quota mặc định: 3 USD/user/tháng, gần {3 / per_user:.0f} lần mức trung bình, đủ cho người dùng nhiều",
+    "Báo cáo hằng tháng theo phòng ban"], size=12)
 
 # ================================================================ 11 cost
-s = header("11. Chi phí", "Tổng trên slide bằng dòng TOTAL của G03_baogia.xlsx", 11)
+top5 = sorted(c.items(), key=lambda kv: -kv[1])[:5]
+assert top5[0][0] == "ops_labor" and top5[1][0] == "llm"
+s = header(f"11. Chi phí: một nửa là nhân sự, LLM chỉ {share('llm')}",
+           f"2 kỹ sư trực vận hành ({usd(c['ops_labor'])} USD) là khoản cố định để giữ 99,5% (H7) và tự chạy LiteLLM. "
+           "Phần theo lượt dùng nhỏ nhờ model rẻ và cache", 11)
 text(s, 0.5, 1.5, 4.0, 1.6, ["6.821,44 USD/tháng", "3,41 USD/DAU/tháng"], size=26, color=NAVY, bold_first=True)
-top = sorted(c.items(), key=lambda kv: -kv[1])[:5]
-table(s, 0.5, 3.1, 5.0, [["5 hạng mục lớn nhất", "USD/tháng", "%"]] +
-      [[k, usd(v), f"{v/TOTAL*100:.0f}%"] for k, v in top], col_w=[2.4, 1.4, 1.2], size=12, row_h=0.42)
+table(s, 0.5, 3.1, 5.0, [["5 khoản lớn nhất", "USD/tháng", "%"]] +
+      [[k, usd(v), f"{v / TOTAL * 100:.0f}%"] for k, v in top5], col_w=[2.4, 1.4, 1.2], size=12, row_h=0.42)
 table(s, 6.0, 1.5, 6.9, [
-    ["Đòn bẩy tiết kiệm (so với phương án thay thế)", "Tiết kiệm (USD/tháng)"],
+    ["Đòn bẩy tiết kiệm", "Tiết kiệm (USD/tháng)"],
     ["Haiku cho cả 5 cấp, thay Sonnet ở cấp 3–4 (eval gate giữ chất lượng)", "4.705"],
     ["LiteLLM thay Apigee", "~1.595"],
     ["Guardrail chỉ quét text mới, thay vì quét toàn bộ token", "1.018"],
-    ["Token vault bằng KMS envelope, thay Secret Manager", "~716"],
+    ["Cất token bằng KMS trong Postgres, thay Secret Manager", "~716"],
     ["Prompt caching (61% token vào đọc từ cache)", "670"],
     ["Ngoài giờ chỉ chạy 1 pod, thay vì 2 pod 24/7", "109"],
     ["pgvector trong DB, thay Vertex Vector Search", "~84"],
-    ["Staging là namespace, thay vì cluster riêng", "73"]],
+    ["Staging dùng chung cụm, thay vì cụm riêng", "73"]],
     col_w=[5.1, 1.8], size=11, row_h=0.42)
-text(s, 6.0, 5.5, 6.9, 1.4, ["Không dùng free tier, credit hay giá khuyến mãi (ví dụ: không tính đợt giảm giá tạm thời của Gemini 3.8 Flash).",
-                             "Chưa tính phí ghi cache của Claude (ước tính vài %). Không mua gói support. Không có dòng dự phòng."], size=11)
+text(s, 6.0, 5.4, 6.9, 1.5, ["Mỗi dòng so với một phương án thay thế riêng, nên không cộng dồn các dòng.",
+                             "Không dùng free tier, credit hay giá khuyến mãi. Chưa tính phí ghi cache của Claude (ước tính vài %). Không mua gói support; không có dòng dự phòng."], size=11)
 
 # ================================================================ 12 risk
-s = header("12. Rủi ro và mở rộng", None, 12)
-table(s, 0.5, 1.4, 6.3, [
+s = header("12. Rủi ro lớn nhất: Haiku không đạt eval ở cấp 3–4",
+           "Khi đó chi phí lên 11.526 USD/tháng. Nhóm đã tính sẵn; LiteLLM đổi model bằng 1 dòng cấu hình", 12)
+table(s, 0.5, 1.5, 6.3, [
     ["Kịch bản", "USD/tháng", "USD/DAU"],
     ["Cơ sở (2.000 DAU)", "6.821", "3,41"],
-    ["DAU ×2 = 4.000", "8.826", "2,21"],
+    ["DAU gấp đôi = 4.000", "8.826", "2,21"],
     ["Giá token +30%", "7.263", "3,63"],
     ["Giá token −50%", "6.085", "3,04"],
     ["Cấp 3–4 phải nâng lên Sonnet 5.5", "11.526", "5,76"],
     ["Workspace đầy 20 TB", "+ ~704", "—"]],
     col_w=[3.3, 1.5, 1.5], size=12, row_h=0.42)
-text(s, 0.5, 4.6, 6.3, 2.3, [
-    ("Khi DAU tăng gấp đôi", True),
-    "Tăng tuyến tính: LLM, guardrail, sandbox, storage, log",
-    "Gần như cố định: 2 FTE, cluster, Cloud SQL, Valkey, LB. Vì vậy USD/DAU giảm",
-    "Chỉ xét tự host GPU khi chi phí token vượt chi phí chạy ≥ 2 GPU HA 24/7 cộng chi phí vận hành"], size=11)
-text(s, 7.1, 1.4, 5.8, 5.4, [
-    ("Rủi ro lớn nhất", True),
-    "Haiku không đạt 95% ở cấp 3–4: thêm 4.705 USD/tháng. Đã tính sẵn; LiteLLM đổi model bằng 1 dòng cấu hình",
-    "Token agent thực tế có thể cao hơn giả định (khoảng 4,6–42,8 tỉ token/tháng). Đo trong pilot 2–4 tuần",
-    "Chưa có số đo chính thức về TTFT của Haiku khi tắt reasoning",
-    "Phụ thuộc endpoint global của Vertex AI và quy định về dữ liệu (Nghị định 13/2023). Phương án hybrid: dữ liệu nhạy cảm dùng model chạy tại Singapore",
-    "Rate limit Jira/Confluence tính chung cho cả app (65.000 điểm/giờ)",
-    "Google dự kiến tính phí API Workspace khi vượt ngưỡng, từ cuối 2026 (chưa công bố giá)",
-    "LiteLLM là open source, không có SLA. Cách giảm rủi ro: 2 FTE trực, pin phiên bản, test trên staging"], size=11)
+text(s, 0.5, 4.7, 6.3, 2.0, [
+    ("Khi DAU gấp đôi, USD/DAU giảm", True),
+    "Tăng theo lượt dùng: LLM, guardrail, sandbox, lưu trữ, log",
+    "Gần như cố định: 2 kỹ sư, cụm GKE, database, cache, cân bằng tải",
+    "Chỉ xét tự host GPU khi tiền token vượt chi phí chạy ≥ 2 GPU 24/7 cộng vận hành"], size=12)
+text(s, 7.1, 1.5, 5.8, 5.2, [
+    ("Các rủi ro khác và cách xử lý", True),
+    "Token thực tế khác giả định: nhóm dùng 13 tỉ token/tháng, khoảng có thể là 4,6–42,8 tỉ → đo trong pilot 2–4 tuần",
+    "Luật bảo vệ dữ liệu cá nhân (Nghị định 13/2023): Vertex AI dùng endpoint global → dữ liệu nhạy cảm dùng model chạy tại Singapore",
+    "LiteLLM là open source, không có SLA → 2 kỹ sư trực, cố định phiên bản, test trên staging",
+    "Rate limit Jira/Confluence dùng chung cho cả app (65.000 điểm/giờ) → hàng đợi và thử lại",
+    "Google dự kiến tính phí API Workspace từ cuối 2026 (chưa công bố giá)"], size=12)
 
 # ================================================================ appendix A
 s = header("Phụ lục A. Báo giá theo component (USD/tháng)", "Chi tiết từng dòng (đơn giá × số lượng, kèm bằng chứng) nằm trong G03_baogia.xlsx", "A")
@@ -406,11 +489,49 @@ text(s, 0.5, 1.3, 12.3, 5.6, [
     "Giá: trang giá chính thức của Google Cloud (GKE, Vertex AI, Cloud SQL, Cloud Storage, Memorystore, Cloud Tasks, KMS, Secret Manager, Observability, Security Command Center, Cloud Armor, VPC network, Cloud Build, Artifact Registry, IAP), đọc ngày 16/10/2026",
     "So sánh với AWS và Azure: AWS Price List API, Azure Retail Prices API (region ap-southeast-1, southeastasia)",
     "Tải: Microsoft WorkLab 2025; Dillon et al., Shifting Work Patterns with Generative AI (2025); Radicati 2015; APQC; Brynjolfsson et al. NBER 31161; Graphite Research; Liang et al. 2025; UK DBT Copilot evaluation 2025",
-    "Token: Azure OpenAI On your data defaults; Vertex RAG Engine; DA-Code; DABstep; MCP-Universe; MCPMark; OpenRouter State of AI 2025; Azure LLM inference trace 2024",
+    "Token mỗi lượt chat (số lần gọi model × token vào / token ra): cấp 1: 2 × 5,5k / 250 · cấp 2: 2 × 18k / 2,5k · cấp 3: 3,5 × 12k / 1k · cấp 4: 8 × 15k / 300 · cấp 5: 1,5 × 4k / 600 + 1 ảnh",
+    "Nguồn token: Azure OpenAI On your data defaults; Vertex RAG Engine; DA-Code; DABstep; MCP-Universe; MCPMark; OpenRouter State of AI 2025; Azure LLM inference trace 2024",
     "Chất lượng và tốc độ model: Artificial Analysis Intelligence Index v4.3.2",
     "Lương: ITviec Vietnam IT Salary & Recruitment Market 2024–2025; tỉ giá Vietcombank ngày 16/10/2026",
     "Connector: Microsoft Graph throttling, Atlassian rate limiting, Notion request limits, Google Workspace API limits",
     "Chi tiết nghiên cứu: thư mục research/ (usage-benchmarks, task-volume-by-role, token-per-task, r1, r2, r3, r5-r9, r8-r6) và cost_model.py"], size=13)
+
+# ================================================================ appendix C: common tasks
+s = header("Phụ lục C. Việc chung của mọi nhân viên: 6,26 nhiệm vụ/ngày", "Ai cũng làm 5 việc này. Số nhiệm vụ = khối lượng việc thật mỗi ngày × tỉ lệ giao cho AI", "C")
+table(s, 0.5, 1.5, 12.3, [
+    ["Việc", "Cấp", "Khối lượng thật/người/ngày", "Tỉ lệ giao AI", "Nhiệm vụ/người/ngày", "Căn cứ"],
+    ["Soạn, trả lời email", "1", "9,9 email gửi", "30%", "2,97", "Trung bình nhân của 2,9 (Microsoft RCT 2025) và 34 (Radicati). 30% cao hơn mức 10–24% của Liang 2025 vì công ty triển khai chính thức"],
+    ["Tóm tắt, phân loại email", "1", "32,2 email đọc", "5%", "1,61", "Microsoft RCT 2025: 160,8 email đọc/tuần. Tỉ lệ 5%: giả định của nhóm"],
+    ["Hỏi đáp tài liệu nội bộ", "1", "4,0 lần tra cứu", "30%", "1,20", "Mỗi người mất 1,6–2 giờ/ngày tìm thông tin (McKinsey, Atlassian). 4 lần và 30%: giả định của nhóm"],
+    ["Biên bản họp → DOCX", "2", "2,0 cuộc họp", "20%", "0,40", "Microsoft RCT 2025: 9,9 cuộc họp/tuần. Tỉ lệ 20%: giả định của nhóm"],
+    ["Báo cáo, đề xuất → DOCX/PPTX", "2", "0,15 tài liệu", "50%", "0,08", "Microsoft RCT 2025: 0,76 tài liệu Word hoàn thành/tuần. Tỉ lệ 50%: giả định của nhóm"],
+    ["Cộng", "", "", "", "6,26", ""]],
+    col_w=[2.5, 0.6, 2.0, 1.1, 1.4, 4.7], size=11, row_h=0.55)
+text(s, 0.5, 5.6, 12.3, 1.3, [
+    ("Đọc bảng thế nào", True),
+    "Ví dụ dòng đầu: mỗi người gửi khoảng 9,9 email/ngày. Nhóm giả định 30% số email đó nhờ AI soạn, nên 9,9 × 30% = 2,97 nhiệm vụ.",
+    "Khối lượng việc lấy từ số đo thật (telemetry, khảo sát). Tỉ lệ giao AI phần lớn là giả định của nhóm; nhóm sẽ đo lại trong pilot 2–4 tuần."], size=12)
+
+# ================================================================ appendix D: per-department tasks
+rows = [["Phòng ban (số người)", "Phòng làm gì", "Việc riêng giao AI (nhiệm vụ/người/ngày)", "Mỗi người/ngày", "Cả phòng/ngày"]]
+DEPT_INFO = {
+    "Kinh doanh, CSKH": ("Bán hàng, chăm sóc khách hàng", "Phân tích doanh số trên Excel 0,10 · agent chuẩn bị gặp khách 0,10 · ảnh cho báo giá 0,03"),
+    "Quản lý dự án, vận hành": ("Điều phối dự án, vận hành hằng ngày", "Agent tạo ticket Jira, trang Confluence 0,90 · phân tích dữ liệu vận hành 0,12 · báo cáo tuần 0,10 · sơ đồ quy trình 0,08"),
+    "Kế toán": ("Sổ sách, thanh toán, báo cáo tài chính", "Phân tích bảng tính tài chính, đối soát 0,80 · tìm hóa đơn bất thường 0,30 · checklist khóa sổ 0,05"),
+    "Nhân sự, HC, pháp chế": ("Tuyển dụng, chính sách, hợp đồng", "Rà soát hợp đồng 0,15 · soạn mô tả công việc, chính sách 0,09 · tổng hợp chấm công 0,08 · đặt lịch phỏng vấn 0,05"),
+    "Marketing": ("Nội dung, chiến dịch, hình ảnh", "Viết bài đăng, thông cáo 0,80 · ảnh, banner 0,25 · số liệu chiến dịch 0,12 · cập nhật kế hoạch 0,08"),
+    "IT": ("Phát triển phần mềm, hạ tầng, hỗ trợ", "Tra cứu, phân loại ticket hỗ trợ 0,60 · agent cập nhật Jira, runbook 0,20 · viết code 0,16 · review code 0,08 · sơ đồ 0,05"),
+    "Mua hàng, SCM": ("Nhà cung cấp, đặt hàng, giao hàng", "So sánh báo giá nhà cung cấp 0,56 · agent cập nhật lịch giao hàng 0,05"),
+    "Lãnh đạo, trợ lý": ("Ra quyết định, họp nhiều", "Họp 4,6 cuộc/ngày nên biên bản họp là 0,92 thay vì 0,40 · agent chuẩn bị briefing 0,92 · sắp lịch 0,20 · slide 0,10"),
+}
+base = Decimal("6.26")
+for k, v, n, per in dept:
+    total = r2(per)
+    rows.append([f"{k} ({n})", DEPT_INFO[k][0], DEPT_INFO[k][1], f"6,26 + {vn(total - base)} = {vn(total)}", f"{n} × {vn(total)} = {usd(v)}"])
+rows.append(["Toàn công ty (2.000)", "", "", f"{vn(T / 2000)} (trung bình)", usd(T)])
+s = header("Phụ lục D. Việc riêng của từng phòng ban", "Mỗi người = 6,26 nhiệm vụ việc chung + việc riêng của phòng. Cả phòng = số người × nhiệm vụ mỗi người", "D")
+table(s, 0.5, 1.45, 12.3, rows, col_w=[2.0, 2.1, 4.6, 1.7, 1.9], size=10, row_h=0.47)
+text(s, 0.5, 6.45, 12.3, 0.5, "Số đã làm tròn 2 chữ số. Nguồn khối lượng việc riêng: APQC (hóa đơn, đơn mua hàng), Graphite (code), MetricNet (ticket IT), HBR 2017 (giờ họp của lãnh đạo); còn lại là giả định của nhóm.", size=10)
 
 prs.save("G03_slide.pptx")
 print("slides", len(prs.slides), "TOTAL", TOTAL)
