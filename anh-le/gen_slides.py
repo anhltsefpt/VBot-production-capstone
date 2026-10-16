@@ -522,15 +522,14 @@ text(s, 7.1, 1.5, 5.8, 5.2, [
     "Google dự kiến tính phí API Workspace từ cuối 2026 (chưa công bố giá)"], size=12)
 
 # ================================================================ appendix A
-s = header("Phụ lục A. Báo giá theo component (USD/tháng)", "Chi tiết từng dòng (đơn giá × số lượng, kèm bằng chứng) nằm trong G03_baogia.xlsx", "A")
-order = ["compute", "llm", "embedding", "gateway", "load_balancer", "authn", "authz", "database", "vector_db", "object_storage",
-         "cache_queue", "sandbox", "connectors", "secrets_kms", "backup_dr", "monitoring", "governance", "network", "cicd", "ops_labor"]
+s = header("Phụ lục A. Báo giá theo component (USD/tháng)", "Sắp xếp từ cao tới thấp. Chi tiết từng dòng (đơn giá × số lượng, kèm bằng chứng) nằm trong G03_baogia.xlsx", "A")
+order = sorted(c, key=lambda k: (-c[k], k))  # highest cost first
 half = (len(order) + 1) // 2
 for k, part in enumerate((order[:half], order[half:])):
-    rows = [["Component", "USD/tháng"]] + [[x, usd2(c[x])] for x in part]
+    rows = [["Component", "USD/tháng", "%"]] + [[x, usd2(c[x]), f"{c[x] / TOTAL * 100:.1f}".replace(".", ",") + "%"] for x in part]
     if k == 1:
-        rows.append(["TOTAL", usd2(TOTAL)])
-    table(s, 0.5 + k * 6.4, 1.5, 6.0, rows, col_w=[3.5, 2.5], size=12, row_h=0.42)
+        rows.append(["TOTAL", usd2(TOTAL), "100%"])
+    table(s, 0.5 + k * 6.4, 1.5, 6.0, rows, col_w=[3.0, 1.8, 1.2], size=12, row_h=0.42)
 
 # ================================================================ appendix B
 s = header("Phụ lục B. Nguồn số liệu", None, "B")
