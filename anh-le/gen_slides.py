@@ -66,7 +66,7 @@ def header(title, sub=None, num=None):
         text(s, 0.5, 1.0, 12.3, 0.5, sub, size=13, color=BLUE)
     if num:
         text(s, 12.3, 7.0, 0.9, 0.4, str(num), size=11, color=GREY, align=PP_ALIGN.RIGHT)
-    text(s, 0.5, 7.0, 8, 0.4, "G03 · VBot Workplace · Lê Tuấn Anh · MSSV 2A202602952", size=10, color=GREY)
+    text(s, 0.5, 7.0, 10, 0.4, "G03 · Lê Tuấn Anh (2A202602952) · Hồ Thái Hòa (2A202602915) · Nguyễn Đình Lâm Phúc (2A202602986)", size=10, color=GREY)
     return s
 
 
@@ -119,10 +119,12 @@ def arrow(slide, x1, y1, x2, y2):
 s = prs.slides.add_slide(BLANK)
 bg = s.shapes.add_shape(MSO_SHAPE.RECTANGLE, 0, 0, prs.slide_width, prs.slide_height)
 bg.fill.solid(); bg.fill.fore_color.rgb = NAVY; bg.line.fill.background()
-text(s, 0.8, 2.0, 11.5, 1.2, "VBot Workplace", size=48, color=WHITE, bold_first=True)
-text(s, 0.8, 3.1, 11.5, 0.8, "Trợ lý AI văn phòng trên Google Cloud cho 2.000 người dùng mỗi ngày", size=24, color=WHITE)
-text(s, 0.8, 4.3, 11.5, 1.2, ["Tổng chi phí: 6.821,44 USD/tháng, tức 3,41 USD cho mỗi người dùng hoạt động (DAU)",
-                              "Track 2 · Production Capstone · Nhóm G03", "Lê Tuấn Anh · MSSV 2A202602952"], size=18, color=RGBColor(0xBF, 0xD7, 0xEA))
+text(s, 0.8, 1.4, 11.5, 1.2, "VBot Workplace", size=48, color=WHITE, bold_first=True)
+text(s, 0.8, 2.5, 11.5, 0.8, "Trợ lý AI văn phòng trên Google Cloud cho 2.000 người dùng mỗi ngày", size=24, color=WHITE)
+text(s, 0.8, 3.6, 11.5, 1.2, ["Tổng chi phí: 6.821,44 USD/tháng, tức 3,41 USD cho mỗi người dùng hoạt động (DAU)",
+                              "Track 2 · Production Capstone · Nhóm G03"], size=18, color=RGBColor(0xBF, 0xD7, 0xEA))
+text(s, 0.8, 4.8, 11.5, 1.8, [("Thành viên", True), "Lê Tuấn Anh · MSSV 2A202602952", "Hồ Thái Hòa · MSSV 2A202602915",
+                              "Nguyễn Đình Lâm Phúc · MSSV 2A202602986"], size=16, color=WHITE)
 
 # ================================================================ 1 load
 with contextlib.redirect_stdout(io.StringIO()):
