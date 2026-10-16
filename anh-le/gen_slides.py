@@ -447,28 +447,53 @@ text(s, 6.9, 4.3, 6.0, 2.3, [
     f"Quota mặc định: 3 USD/user/tháng, gần {3 / per_user:.0f} lần mức trung bình, đủ cho người dùng nhiều",
     "Báo cáo hằng tháng theo phòng ban"], size=12)
 
-# ================================================================ 11 cost
+# ================================================================ 11a cost breakdown
 top5 = sorted(c.items(), key=lambda kv: -kv[1])[:5]
-assert top5[0][0] == "ops_labor" and top5[1][0] == "llm"
+assert [k for k, _ in top5] == ["ops_labor", "llm", "governance", "database", "sandbox"]
+rest = sorted([(k, v) for k, v in c.items() if k not in dict(top5) and v > 0], key=lambda kv: -kv[1])
+rest_sum = TOTAL - sum(v for _, v in top5)
 s = header(f"11. Chi phí: một nửa là nhân sự, LLM chỉ {share('llm')}",
-           f"2 kỹ sư trực vận hành ({usd(c['ops_labor'])} USD) là khoản cố định để giữ 99,5% (H7) và tự chạy LiteLLM. "
-           "Phần theo lượt dùng nhỏ nhờ model rẻ và cache", 11)
-text(s, 0.5, 1.5, 4.0, 1.6, ["6.821,44 USD/tháng", "3,41 USD/DAU/tháng"], size=26, color=NAVY, bold_first=True)
-table(s, 0.5, 3.1, 5.0, [["5 khoản lớn nhất", "USD/tháng", "%"]] +
-      [[k, usd(v), f"{v / TOTAL * 100:.0f}%"] for k, v in top5], col_w=[2.4, 1.4, 1.2], size=12, row_h=0.42)
-table(s, 6.0, 1.5, 6.9, [
-    ["Đòn bẩy tiết kiệm", "Tiết kiệm (USD/tháng)"],
-    ["Haiku cho cả 5 cấp, thay Sonnet ở cấp 3–4 (eval gate giữ chất lượng)", "4.705"],
-    ["LiteLLM thay Apigee", "~1.595"],
-    ["Guardrail chỉ quét text mới, thay vì quét toàn bộ token", "1.018"],
-    ["Cất token bằng KMS trong Postgres, thay Secret Manager", "~716"],
-    ["Prompt caching (61% token vào đọc từ cache)", "670"],
-    ["Ngoài giờ chỉ chạy 1 pod, thay vì 2 pod 24/7", "109"],
-    ["pgvector trong DB, thay Vertex Vector Search", "~84"],
-    ["Staging dùng chung cụm, thay vì cụm riêng", "73"]],
-    col_w=[5.1, 1.8], size=11, row_h=0.42)
-text(s, 6.0, 5.4, 6.9, 1.5, ["Mỗi dòng so với một phương án thay thế riêng, nên không cộng dồn các dòng.",
-                             "Không dùng free tier, credit hay giá khuyến mãi. Chưa tính phí ghi cache của Claude (ước tính vài %). Không mua gói support; không có dòng dự phòng."], size=11)
+           f"Tổng 6.821,44 USD/tháng, tức 3,41 USD/DAU. Bảng dưới giải thích vì sao mỗi khoản ra con số này", "11a")
+table(s, 0.5, 1.5, 12.3, [
+    ["Khoản", "USD/tháng", "%", "Cách tính", "Vì sao lớn hay nhỏ"],
+    ["ops_labor (nhân sự)", usd(c["ops_labor"]), share("ops_labor"),
+     "2 kỹ sư trực luân phiên: SRE 5–8 năm (53,85 triệu VND) + AI/MLOps 3–4 năm (34,1 triệu VND) = 87,95 triệu VND ÷ 25.870 VND/USD",
+     "Lớn nhất vì cố định: cần người trực để giữ 99,5% (H7), vận hành LiteLLM và eval. Không giảm khi ít người dùng"],
+    ["llm", usd(c["llm"]), share("llm"),
+     "Lượt × số lần gọi model × token × giá. Cấp 1: 386 · cấp 2: 288 · cấp 3: 161 · cấp 4: 105 · cấp 5: 7 + ảnh 147 (4.312 ảnh × 0,034)",
+     "Nhỏ vì Haiku rẻ (0,10 USD/1M token vào) và 61% token vào đọc từ cache với giá 0,01"],
+    ["governance", usd(c["governance"]), share("governance"),
+     "Guardrail: 2,81 tỉ token × 0,10 USD/1M = 281. Eval gate: 4 lần/tháng × 5 cấp × 100 nhiệm vụ = 525",
+     "Eval đắt hơn guardrail vì Opus 5.5 vừa làm bài mẫu vừa chấm điểm"],
+    ["database", usd(c["database"]), share("database"),
+     "Postgres HA 2 vCPU, 13 GB × 730 giờ = 355 · SSD 150 GB = 71 · database staging = 41",
+     "Chạy 24/7, có bản dự phòng ở zone khác. Chứa luôn vector và token, nên không cần dịch vụ riêng"],
+    ["sandbox", usd(c["sandbox"]), share("sandbox"),
+     "140.800 lượt × 2 phút = 4.693 vCPU-giờ × 0,0549 + 9.386 GB-giờ × 0,0061",
+     "Là cận trên: thời gian chạy thật chưa đo, nên mỗi lượt tính đủ 2 phút tối đa"],
+    [f"{len(rest)} khoản còn lại", usd(rest_sum), f"{rest_sum / TOTAL * 100:.0f}%",
+     " · ".join(f"{k} {usd(v)}" for k, v in rest[:5]) + " · …",
+     "Hạ tầng gọn: 1 cụm GKE, 1 region, phần lớn chỉ chạy đủ trong giờ hành chính"]],
+    col_w=[1.8, 1.1, 0.7, 4.7, 4.0], size=11, row_h=0.68)
+text(s, 0.5, 6.45, 12.3, 0.5, "Đơn giá và bằng chứng từng dòng: Phụ lục A và G03_baogia.xlsx. Không dùng free tier, credit hay giá khuyến mãi.", size=11)
+
+# ================================================================ 11b savings levers
+s = header("11. Đòn bẩy: mỗi lựa chọn tiết kiệm bao nhiêu",
+           "Tiết kiệm = chi phí của phương án thay thế − chi phí của phương án nhóm chọn. Đơn vị: USD/tháng", "11b")
+table(s, 0.5, 1.5, 12.3, [
+    ["Đòn bẩy", "Tiết kiệm", "Cách tính"],
+    ["Haiku cho cả 5 cấp, thay Sonnet ở cấp 3–4", "4.705", "Sonnet cho cấp 3 tốn thêm 2.939, cấp 4 tốn thêm 1.766. Eval gate kiểm tra Haiku vẫn đạt ≥ 95% điểm Opus"],
+    ["LiteLLM thay Apigee", "~1.595", "Apigee: môi trường Intermediate 1.460 + phí theo lượt gọi. LiteLLM miễn phí, chạy trong compute"],
+    ["Guardrail chỉ quét text mới", "1.018", "Quét toàn bộ 12,98 tỉ token = 1.298 − quét 2,81 tỉ token mới = 281"],
+    ["Cất token bằng KMS trong Postgres", "~716", "12.000 secret × 0,06 = 720 − KMS ≈ 4"],
+    ["Prompt caching", "670", "7,44 tỉ token vào đọc từ cache × (0,10 − 0,01) USD/1M token"],
+    ["Ngoài giờ chỉ chạy 1 pod mỗi loại", "109", "510 giờ ngoài giờ × 3 loại pod: 1.530 vCPU-giờ × 0,0549 + 4.080 GB-giờ × 0,0061"],
+    ["pgvector trong Postgres", "~84", "Vertex Vector Search cần tối thiểu 1 máy chạy 24/7"],
+    ["Staging dùng chung cụm GKE", "73", "Cụm riêng mất thêm phí quản lý: 0,10 USD/giờ × 730 giờ"]],
+    col_w=[3.8, 1.3, 7.2], size=12, row_h=0.5)
+text(s, 0.5, 6.1, 12.3, 0.8, ["Mỗi dòng so với một phương án thay thế riêng, nên không cộng dồn các dòng.",
+                              "Chưa tính phí ghi cache của Claude (ước tính vài %). Không mua gói support. Không có dòng dự phòng."], size=11)
+
 
 # ================================================================ 12 risk
 s = header("12. Rủi ro lớn nhất: Haiku không đạt eval ở cấp 3–4",
